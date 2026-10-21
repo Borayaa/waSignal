@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+bridge/node_modules/
+bridge/auth/
+bridge/.env
+bridge/dist/

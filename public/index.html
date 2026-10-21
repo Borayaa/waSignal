@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>waSignal Trading</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="login-body">
+<main class="login-card card">
+  <div class="brand"><span class="logo"></span> waSignal <em>Trading</em></div>
+  <form id="form" autocomplete="off">
+    <label class="field"><span>Access key</span>
+      <div class="input-row"><input id="apiKey" type="password" required autocomplete="off" spellcheck="false"><button type="button" id="toggle" class="btn ghost">Show</button></div>
+    </label>
+    <label class="field"><span>Invite code <small>(only for new accounts)</small></span><input id="inviteCode" type="text" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Account label <small>(optional)</small></span><input id="label" type="text" maxlength="60" placeholder="e.g. Main XAU"></label>
+    <div id="err" class="inline-err" hidden></div>
+    <button id="submit" class="btn primary block" type="submit">Sign in</button>
+  </form>
+  <p class="muted small">Your access key is your password. A new key creates a new account (requires an invite code).</p>
+</main>
+<script type="module" src="/assets/login.js"></script>
+</body>
+</html>

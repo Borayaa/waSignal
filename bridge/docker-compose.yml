@@ -1,0 +1,9 @@
+services:
+  bridge:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AUTH_DIR: /app/auth
+    volumes:
+      - ./auth:/app/auth

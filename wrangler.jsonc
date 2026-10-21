@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wasignal-trading",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "trading.infragreen.app", "custom_domain": true }],
+  // Static dashboard UI. Worker handles /api/* first (dashboard API + Baileys bridge API).
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  // Accounts, automation config, WhatsApp state, signals and trade log.
+  // TODO: replace database_id after `wrangler d1 create wasignal-trading`
+  "d1_databases": [{ "binding": "DB", "database_name": "wasignal-trading", "database_id": "50a49e7c-4fdd-44df-aebe-8c76f02d14d7", "migrations_dir": "migrations" }],
+  // Workers AI — Clairic extraction model (@cf/cloudflare/clairic).
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    "SIGNUP_ENABLED": "true",
+    // "free" | "paid" — selects the plan used by /api/costs
+    "WORKERS_PLAN": "free"
+  },
+  // WhatsApp messages are queued: extraction + cTrader session run outside the request (no waitUntil limit, no retries).
+  "queues": {
+    "producers": [{ "binding": "SIGNAL_QUEUE", "queue": "wasignal-signals" }],
+    "consumers": [{ "queue": "wasignal-signals", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 0 }]
+  },
+  // Secrets (wrangler secret put): SESSION_SECRET, ENCRYPTION_KEY (base64 32 bytes), BRIDGE_TOKEN, INVITE_CODE (optional),
+  // CTRADER_CLIENT_ID, CTRADER_CLIENT_SECRET (cTrader Open API application, openapi.ctrader.com)
+  "observability": { "enabled": true }
+}

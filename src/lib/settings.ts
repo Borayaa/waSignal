@@ -1,0 +1,34 @@
+import { DEFAULT_CONFIG, type AccountSettings, type AutomationConfig, type Env } from '../types';
+import { decrypt } from './crypto';
+
+async function configRow(env: Env, accountId: string): Promise<string | null> {
+  const r = await env.DB.prepare('SELECT config FROM settings WHERE account_id = ?').bind(accountId).first<{ config: string }>();
+  return r?.config ?? null;
+}
+
+export async function getConfig(env: Env, accountId: string): Promise<AutomationConfig> {
+  const raw = await configRow(env, accountId);
+  return { ...DEFAULT_CONFIG, ...(raw ? (JSON.parse(raw) as Partial<AutomationConfig>) : {}) };
+}
+
+export async function getSettings(env: Env, accountId: string): Promise<AccountSettings> {
+  return { config: await getConfig(env, accountId) };
+}
+
+/** Merge a partial config. */
+export async function saveSettings(env: Env, accountId: string, patch: { config?: Partial<AutomationConfig> }): Promise<AccountSettings> {
+  const config = { ...(await getConfig(env, accountId)), ...(patch.config ?? {}) };
+  await env.DB.prepare(
+    `INSERT INTO settings (account_id, config, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT(account_id) DO UPDATE SET config = ?2, updated_at = ?3`,
+  )
+    .bind(accountId, JSON.stringify(config), Date.now())
+    .run();
+  return getSettings(env, accountId);
+}
+
+export async function getApiKey(env: Env, accountId: string): Promise<string> {
+  const r = await env.DB.prepare('SELECT api_key_enc FROM accounts WHERE id = ?').bind(accountId).first<{ api_key_enc: string }>();
+  if (!r) throw new Error('account not found');
+  return decrypt(env, r.api_key_enc);
+}

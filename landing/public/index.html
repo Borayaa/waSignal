@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InfraGreen - WhatsApp signals to cTrader trades</title>
+<meta name="description" content="InfraGreen Trading reads signals from one WhatsApp chat, extracts the trade with AI, runs safety checks, and executes on cTrader in about a second.">
+<link rel="canonical" href="https://infragreen.app/">
+<meta name="theme-color" content="#0a120e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f9f5" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="InfraGreen">
+<meta property="og:title" content="InfraGreen - WhatsApp signals to cTrader trades">
+<meta property="og:description" content="Read signals from one WhatsApp chat, let AI extract the trade, pass safety checks, execute on cTrader.">
+<meta property="og:url" content="https://infragreen.app/">
+<meta property="og:image" content="https://infragreen.app/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="nav"><div class="wrap">
+<a class="logo" href="#top" aria-label="InfraGreen home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor" opacity=".12"/><path d="M14 44 26 30l9 8 15-20" fill="none" stroke="#3ddc84" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>Infra<b>Green</b></a>
+<nav aria-label="Primary" style="display:contents">
+<a class="l" href="#how">How it works</a><a class="l" href="#safety">Safety</a><a class="l" href="#dashboard">Dashboard</a><a class="l" href="#faq">FAQ</a>
+</nav>
+<a class="btn sm" href="https://trading.infragreen.app">Open dashboard</a>
+</div></header>
+
+<main id="top">
+<section class="hero"><div class="wrap">
+<h1>Turn WhatsApp signals into cTrader trades in seconds.</h1>
+<p class="sub">InfraGreen Trading watches one chat you choose, reads each message with AI, checks it against your safety rules, and places the order on your cTrader account.</p>
+<div class="cta"><a class="btn" href="https://trading.infragreen.app">Open dashboard</a><a class="btn ghost" href="#how">How it works</a></div>
+<p class="note">Automation is off by default. Start on a demo account in dry-run mode.</p>
+
+<div class="flow" role="img" aria-label="Example: a WhatsApp message 'GOLD BUY NOW, SL 2318, TP 2335' becomes structured JSON and then a filled cTrader order.">
+<div class="fc"><small>WhatsApp, your chosen chat</small><div class="bubble">GOLD BUY NOW<br>SL 2318<br>TP 2335<i>just now</i></div></div>
+<div class="fc"><small>AI extracts the trade</small><pre class="json"><span class="k">"side":</span> <span class="v">"buy"</span>
+<span class="k">"symbol":</span> <span class="v">"XAUUSD"</span>
+<span class="k">"type":</span> <span class="v">"market"</span>
+<span class="k">"sl":</span> <span class="v">2318</span>
+<span class="k">"tp":</span> <span class="v">[2335]</span></pre></div>
+<div class="fc ticket"><small>cTrader</small><div class="ok">Order filled</div>
+<div class="row"><span>XAUUSD</span><span>BUY</span></div><div class="row"><span>SL</span><span>2318</span></div><div class="row"><span>TP</span><span>2335</span></div><div class="row"><span>Account</span><span class="tag">Demo</span></div></div>
+</div>
+<p class="note">Illustrative example only. Not a real signal or result.</p>
+</div></section>
+
+<section id="how" class="alt"><div class="wrap">
+<h2>From chat message to open position</h2>
+<p class="lede">Four steps, no copy-pasting, no staring at your phone.</p>
+<ol class="steps">
+<li><h3>Connect WhatsApp</h3><p>Link WhatsApp Web through the bridge, then pick the one chat or group to follow. Everything else is ignored.</p></li>
+<li><h3>AI extracts the trade</h3><p>Each message becomes structured JSON: side, symbol, order type, entry, stop loss, take profits and lot.</p></li>
+<li><h3>Safety checks</h3><p>The trade must pass every rule you set before it can reach your broker. Anything doubtful is rejected.</p></li>
+<li><h3>Executes on cTrader</h3><p>The order goes to your IC Markets cTrader account through the official Open API in about a second.</p></li>
+</ol></div></section>
+
+<section id="safety"><div class="wrap">
+<h2>Built to say no</h2>
+<p class="lede">A misread message should cost you nothing. These checks run before anything trades.</p>
+<div class="grid">
+<div><h3>Confidence threshold</h3><p>Low-confidence extractions are dropped, not guessed at.</p></div>
+<div><h3>Prices must be in the message</h3><p>Every price has to appear literally in the original text, so the model cannot invent numbers.</p></div>
+<div><h3>Sides must make sense</h3><p>Stop loss and take profit have to sit on the correct side of entry for a buy or a sell.</p></div>
+<div><h3>No silent conversions</h3><p>A pending order without an entry price is rejected. It is never turned into a market order.</p></div>
+<div><h3>Stale messages ignored</h3><p>Messages older than 5 minutes are skipped.</p></div>
+<div><h3>Symbol allow-list and mapping</h3><p>Only symbols you allow can trade. Map names like <code>GOLD</code> to <code>XAUUSD</code>.</p></div>
+<div><h3>Lot and position caps</h3><p>Set a maximum lot size and a maximum number of open positions.</p></div>
+<div><h3>Dry-run mode</h3><p>See what would have been traded without sending a single order.</p></div>
+<div><h3>Off until you switch it on</h3><p>Automation is disabled by default on every new workspace.</p></div>
+</div></div></section>
+
+<section id="dashboard" class="alt"><div class="wrap split">
+<div><h2>See every decision</h2>
+<p class="lede">The dashboard shows what came in, what the AI understood, and what happened next.</p>
+<p style="margin-top:24px"><a class="btn" href="https://trading.infragreen.app">Open dashboard</a></p></div>
+<ul class="list">
+<li><b>Account overview.</b> Balance and equity at a glance, with live accounts clearly flagged.</li>
+<li><b>Open positions.</b> Close any of them with one click.</li>
+<li><b>Signals feed.</b> Each WhatsApp message next to its extracted JSON and outcome.</li>
+<li><b>Trade log.</b> A record of every order placed.</li>
+<li><b>WhatsApp connection.</b> Connect, and pick the chat to follow.</li>
+<li><b>Automation settings.</b> Thresholds, allow-list, caps and dry-run.</li>
+<li><b>Playground.</b> Paste a message and test it without trading.</li>
+<li><b>Running costs.</b> Track what the system costs to run.</li>
+</ul></div></section>
+
+<section><div class="wrap">
+<h2>Private by design</h2>
+<div class="grid">
+<div><h3>Your password stays yours</h3><p>You sign in with your cTrader ID through OAuth. InfraGreen never sees your trading password.</p></div>
+<div><h3>One workspace per key</h3><p>Each access key is its own workspace, with its own accounts, chat and settings.</p></div>
+<div><h3>Demo and live</h3><p>Connect either account type. Live accounts are clearly marked in the interface.</p></div>
+<div><h3>Serverless on Cloudflare</h3><p>Built on Workers, D1, Queues and Workers AI, so there are no servers to run.</p></div>
+</div></div></section>
+
+<section class="band"><div class="wrap"><div class="box">
+<h2>Invite-only access</h2>
+<p>New accounts are created with an invite code. Ask for one and we will reply with the next steps.</p>
+<a class="btn" href="mailto:hello@infragreen.app?subject=InfraGreen%20invite%20request">Request an invite</a>
+</div></div></section>
+
+<section id="faq"><div class="wrap">
+<h2>Questions</h2>
+<div class="faq">
+<details><summary>Which brokers work?</summary><p>InfraGreen executes on cTrader, currently with IC Markets, through the official cTrader Open API.</p></details>
+<details><summary>Does it need my trading password?</summary><p>No. You connect with your cTrader ID using OAuth, and the app never sees your trading password.</p></details>
+<details><summary>Can I test it safely?</summary><p>Yes. Use a demo account, and turn on dry-run mode to see what would be traded without placing orders. The playground lets you test messages too.</p></details>
+<details><summary>Which chats does it read?</summary><p>Only the single WhatsApp chat or group you select, through a WhatsApp Web bridge.</p></details>
+<details><summary>What does it cost to run?</summary><p>Because it runs serverless on Cloudflare, running costs are typically very low and may fit within Cloudflare's free tier, depending on your usage. The dashboard includes a running-cost view.</p></details>
+<details><summary>How do I get an account?</summary><p>Access is by invite code. Email <a href="mailto:hello@infragreen.app">hello@infragreen.app</a> to request one.</p></details>
+</div></div></section>
+</main>
+
+<footer><div class="wrap">
+<div class="row"><a class="logo" href="#top">Infra<b>Green</b></a>
+<a href="https://trading.infragreen.app">Open dashboard</a></div>
+<p class="risk" role="note"><strong>Risk disclaimer.</strong> Trading leveraged products involves substantial risk of loss and is not suitable for everyone. Automated execution can fail or misread signals, and you can lose more than you expect. InfraGreen provides software only and does not give financial advice. InfraGreen is not affiliated with WhatsApp or Meta, Spotware or cTrader, or IC Markets.</p>
+<p>&copy; 2026 InfraGreen</p>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "infragreen-landing",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  // Marketing landing page. The trading app itself lives at trading.infragreen.app (root wrangler.jsonc).
+  "routes": [
+    { "pattern": "infragreen.app", "custom_domain": true },
+    { "pattern": "www.infragreen.app", "custom_domain": true }
+  ],
+  // Static-only Worker: no script, assets served directly.
+  "assets": { "directory": "public", "not_found_handling": "404-page" },
+  "observability": { "enabled": true }
+}
