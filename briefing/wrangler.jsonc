@@ -1,0 +1,11 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "infragreen-briefing",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  // Public explainer: how a WhatsApp signal becomes a cTrader order, plus the Expected Value calculator.
+  "routes": [{ "pattern": "briefing.infragreen.app", "custom_domain": true }],
+  "assets": { "directory": "public", "not_found_handling": "404-page" },
+  "observability": { "enabled": true }
+}

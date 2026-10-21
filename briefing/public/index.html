@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How a signal becomes a buy/sell order - InfraGreen</title>
+<meta name="description" content="A plain-language walk-through of how InfraGreen Trading turns a WhatsApp or Telegram message into a cTrader order: extraction, safety checks, execution, and a worked example.">
+<link rel="canonical" href="https://briefing.infragreen.app/">
+<meta name="theme-color" content="#0a120e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f9f5" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="InfraGreen">
+<meta property="og:title" content="How a signal becomes a buy/sell order">
+<meta property="og:description" content="From a chat message to a cTrader order: extraction, safety checks, execution, with a worked example.">
+<meta property="og:url" content="https://briefing.infragreen.app/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/ev.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav"><div class="wrap">
+<a class="logo" href="https://landing.infragreen.app" aria-label="InfraGreen home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor" opacity=".12"/><path d="M14 44 26 30l9 8 15-20" fill="none" stroke="#3ddc84" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>Infra<b>Green</b></a>
+<nav aria-label="Sections" style="display:contents"><a class="l" href="#flow">Flow</a><a class="l" href="#stages">Stages</a><a class="l" href="#example">Example</a><a class="l" href="#safety">Safety rules</a><a class="l" href="#ev">Expected value</a><a class="l" href="#glossary">Glossary</a></nav>
+<a class="btn sm" href="https://trading.infragreen.app">Open dashboard</a>
+</div></header>
+
+<main id="main">
+<section class="hero"><div class="wrap">
+<h1>From chat message to order</h1>
+<p class="sub">How a signal posted in a WhatsApp chat or Telegram channel becomes a buy or sell order on your cTrader account, and every check it has to pass on the way.</p>
+<div class="times"><div><b>~1 s</b><span>to extract the trade</span></div><div><b>~1 s</b><span>to place the order</span></div></div>
+<p class="note">Timings are typical, not guaranteed. Automation ships switched off and in dry-run mode: nothing is traded until you turn it on.</p>
+</div></section>
+
+<section class="s alt" id="flow" aria-labelledby="flow-title"><div class="wrap">
+<h2 id="flow-title">The path of one message</h2>
+<p class="lede">A message only becomes an order if it survives every step. Anything that fails stops there and is logged with the reason.</p>
+<figure class="diagram">
+<svg class="h" viewBox="0 0 1100 450" role="img" aria-labelledby="dh-t dh-d"><title id="dh-t">How a chat message becomes a cTrader order</title><desc id="dh-d">WhatsApp and Telegram messages reach the bridge. The bridge sends them to the Worker, which keeps only the chosen chat and queues them. Clairic extracts the trade, safety checks decide, and passing signals go to the cTrader Open API and IC Markets. Failing signals are ignored, rejected or recorded as a dry run. Every step is logged in D1 and shown on the dashboard.</desc><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z"/></marker></defs>
+<rect class="n" x="10" y="100" width="120" height="50" rx="10"/><text class="t" x="70" y="125" text-anchor="middle">WhatsApp</text><text class="sm" x="70" y="143" text-anchor="middle">Baileys session</text><rect class="n" x="10" y="200" width="120" height="50" rx="10"/><text class="t" x="70" y="225" text-anchor="middle">Telegram</text><text class="sm" x="70" y="243" text-anchor="middle">your user session</text><polyline points="130,125 150,125 150,182 168,182" marker-end="url(#ah)"/><polyline points="130,225 150,225 150,182" />
+<rect class="n" x="170" y="150" width="120" height="64" rx="10"/><text class="t" x="230" y="175" text-anchor="middle">Bridge</text><text class="sm" x="230" y="193" text-anchor="middle">VPS / home server</text><rect class="n" x="330" y="150" width="120" height="64" rx="10"/><text class="t" x="390" y="175" text-anchor="middle">Worker</text><text class="sm" x="390" y="193" text-anchor="middle">target-chat filter</text><rect class="n" x="490" y="150" width="120" height="64" rx="10"/><text class="t" x="550" y="175" text-anchor="middle">Queue</text><text class="sm" x="550" y="193" text-anchor="middle">one at a time</text><rect class="k" x="650" y="150" width="120" height="64" rx="10"/><text class="t" x="710" y="175" text-anchor="middle">Clairic</text><text class="sm" x="710" y="193" text-anchor="middle">Workers AI extract</text><rect class="k" x="810" y="150" width="120" height="64" rx="10"/><text class="t" x="870" y="175" text-anchor="middle">Safety checks</text><text class="sm" x="870" y="193" text-anchor="middle">rules + config</text><rect class="n" x="970" y="150" width="120" height="64" rx="10"/><text class="t" x="1030" y="175" text-anchor="middle">cTrader API</text><text class="sm" x="1030" y="193" text-anchor="middle">WebSocket :5036</text><line x1="290" y1="182" x2="328" y2="182" marker-end="url(#ah)"/>
+<line x1="450" y1="182" x2="488" y2="182" marker-end="url(#ah)"/>
+<line x1="610" y1="182" x2="648" y2="182" marker-end="url(#ah)"/>
+<line x1="770" y1="182" x2="808" y2="182" marker-end="url(#ah)"/>
+<line x1="930" y1="182" x2="968" y2="182" marker-end="url(#ah)"/><text class="sm" x="950" y="172" text-anchor="middle">pass</text>
+<text class="sm" x="230" y="238" text-anchor="middle">polls Worker every 3 s</text>
+<line x1="1030" y1="214" x2="1030" y2="288" marker-end="url(#ah)"/>
+<rect class="n" x="970" y="290" width="120" height="50" rx="10"/><text class="t" x="1030" y="315" text-anchor="middle">IC Markets</text><text class="sm" x="1030" y="333" text-anchor="middle">your account</text><polyline points="870,214 870,256 685,256 685,288" marker-end="url(#ah)"/><polyline points="790,256 790,288" marker-end="url(#ah)"/><polyline points="895,256 895,288" marker-end="url(#ah)"/><text class="sm" x="880" y="248">otherwise</text>
+<rect class="o" x="640" y="290" width="90" height="50" rx="10"/><text class="t" x="685" y="315" text-anchor="middle">Ignored</text><rect class="o" x="745" y="290" width="90" height="50" rx="10"/><text class="t" x="790" y="315" text-anchor="middle">Rejected</text><rect class="o" x="850" y="290" width="90" height="50" rx="10"/><text class="t" x="895" y="315" text-anchor="middle">Dry run</text><line class="dash" x1="550" y1="370" x2="550" y2="216" marker-end="url(#ah)"/><text class="sm" x="560" y="300">every step logged</text>
+<rect class="o" x="490" y="370" width="120" height="54" rx="10"/><text class="t" x="550" y="395" text-anchor="middle">D1 log</text><text class="sm" x="550" y="413" text-anchor="middle">signals + trades</text><line class="dash" x1="610" y1="397" x2="648" y2="397" marker-end="url(#ah)"/>
+<rect class="o" x="650" y="370" width="120" height="54" rx="10"/><text class="t" x="710" y="395" text-anchor="middle">Dashboard</text><text class="sm" x="710" y="413" text-anchor="middle">you read it here</text></svg>
+<svg class="v" viewBox="0 0 340 585" role="img" aria-labelledby="dv-t dv-d"><title id="dv-t">How a chat message becomes a cTrader order</title><desc id="dv-d">Top to bottom: WhatsApp and Telegram, bridge, Worker with target-chat filter, queue, Clairic extraction, safety checks, cTrader API, IC Markets. Safety checks that fail end as Ignored, Rejected or Dry run. Queue steps are logged in D1 and shown on the dashboard.</desc><defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z"/></marker></defs>
+<rect class="n" x="10" y="8" width="86" height="46" rx="10"/><text class="t" x="53" y="33" text-anchor="middle">WhatsApp</text><rect class="n" x="104" y="8" width="86" height="46" rx="10"/><text class="t" x="147" y="33" text-anchor="middle">Telegram</text><polyline points="53,54 53,68 100,68 100,80" marker-end="url(#ah2)"/><polyline points="147,54 147,68 100,68"/>
+<rect class="n" x="10" y="82" width="180" height="50" rx="10"/><text class="t" x="100" y="107" text-anchor="middle">Bridge</text><text class="sm" x="100" y="125" text-anchor="middle">polls every 3 s</text><line x1="100" y1="132" x2="100" y2="152" marker-end="url(#ah2)"/>
+<rect class="n" x="10" y="154" width="180" height="50" rx="10"/><text class="t" x="100" y="179" text-anchor="middle">Worker</text><text class="sm" x="100" y="197" text-anchor="middle">target-chat filter</text><line x1="100" y1="204" x2="100" y2="224" marker-end="url(#ah2)"/>
+<rect class="n" x="10" y="226" width="180" height="50" rx="10"/><text class="t" x="100" y="251" text-anchor="middle">Queue</text><text class="sm" x="100" y="269" text-anchor="middle">one at a time</text><line x1="100" y1="276" x2="100" y2="296" marker-end="url(#ah2)"/>
+<rect class="k" x="10" y="298" width="180" height="50" rx="10"/><text class="t" x="100" y="323" text-anchor="middle">Clairic</text><text class="sm" x="100" y="341" text-anchor="middle">Workers AI extract</text><line x1="100" y1="348" x2="100" y2="368" marker-end="url(#ah2)"/>
+<rect class="k" x="10" y="370" width="180" height="50" rx="10"/><text class="t" x="100" y="395" text-anchor="middle">Safety checks</text><text class="sm" x="100" y="413" text-anchor="middle">rules + config</text><line x1="100" y1="420" x2="100" y2="440" marker-end="url(#ah2)"/>
+<rect class="n" x="10" y="442" width="180" height="50" rx="10"/><text class="t" x="100" y="467" text-anchor="middle">cTrader API</text><text class="sm" x="100" y="485" text-anchor="middle">WebSocket :5036</text><line x1="100" y1="492" x2="100" y2="512" marker-end="url(#ah2)"/>
+<rect class="n" x="10" y="514" width="180" height="50" rx="10"/><text class="t" x="100" y="539" text-anchor="middle">IC Markets</text><text class="sm" x="100" y="557" text-anchor="middle">your account</text><line class="dash" x1="190" y1="251" x2="213" y2="251" marker-end="url(#ah2)"/>
+<rect class="o" x="215" y="226" width="120" height="50" rx="10"/><text class="t" x="275" y="251" text-anchor="middle">D1 log</text><text class="sm" x="275" y="269" text-anchor="middle">every step</text><line class="dash" x1="275" y1="276" x2="275" y2="296" marker-end="url(#ah2)"/>
+<rect class="o" x="215" y="298" width="120" height="50" rx="10"/><text class="t" x="275" y="323" text-anchor="middle">Dashboard</text><text class="sm" x="215" y="366">otherwise</text><line x1="190" y1="395" x2="202" y2="395"/><line x1="202" y1="388" x2="202" y2="468"/><line x1="202" y1="388" x2="213" y2="388" marker-end="url(#ah2)"/><line x1="202" y1="428" x2="213" y2="428" marker-end="url(#ah2)"/><line x1="202" y1="468" x2="213" y2="468" marker-end="url(#ah2)"/>
+<rect class="o" x="215" y="372" width="120" height="32" rx="10"/><text class="t" x="275" y="397" text-anchor="middle">Ignored</text><rect class="o" x="215" y="412" width="120" height="32" rx="10"/><text class="t" x="275" y="437" text-anchor="middle">Rejected</text><rect class="o" x="215" y="452" width="120" height="32" rx="10"/><text class="t" x="275" y="477" text-anchor="middle">Dry run</text></svg>
+
+<figcaption>Solid arrows are the trade path. Dashed arrows are the log lane: every message and order is written to D1 and shown on the dashboard. Safety checks end in one of four outcomes: order placed, Ignored, Rejected or Dry run.</figcaption>
+</figure>
+</div></section>
+
+<section class="s" id="stages" aria-labelledby="stages-title"><div class="wrap">
+<h2 id="stages-title">Five stages, in order</h2>
+<ol class="stages">
+<li class="stage"><h3>Sources and the bridge</h3>
+<p>One small program, the bridge, runs on a VPS or home server and listens to both WhatsApp and Telegram. It forwards messages from only the one chat you picked for each source.</p>
+<details><summary>Deep dive</summary><ul>
+<li><b>WhatsApp:</b> uses Baileys, which signs in like WhatsApp Web (you scan a QR code).</li>
+<li><b>Telegram:</b> signs in as your own user account over MTProto (GramJS), so it can read channels and groups you have joined. It may ask for your 2FA password.</li>
+<li><b>Polling:</b> the bridge asks the Worker for its instructions every 3 seconds: which accounts should be connected and which chat is the target.</li>
+<li><b>Filtering:</b> messages from any other chat are dropped, and empty messages (no text) are skipped.</li></ul></details></li>
+
+<li class="stage"><h3>Intake</h3>
+<p>The bridge posts each message to the Worker. The Worker double-checks the chat, queues the message, and processes messages one at a time.</p>
+<details><summary>Deep dive</summary><ul>
+<li><b>Endpoint:</b> <code>POST /api/bridge/message</code>, protected by a bearer token.</li>
+<li><b>Target-chat check:</b> the chat id must match the target chosen for that source (WhatsApp or Telegram). Otherwise the answer is "ignored".</li>
+<li><b>Queue:</b> accepted messages go into a Cloudflare Queue. The consumer handles one message at a time and has no short time limit, so extraction plus a broker session can finish.</li>
+<li><b>Duplicates:</b> each message id is stored once. If the same id arrives again it is ignored.</li></ul></details></li>
+
+<li class="stage"><h3>Extraction with Clairic</h3>
+<p>An AI model on Cloudflare Workers AI (Clairic) reads the text and fills in a fixed set of fields, each with a confidence score. It reads; it does not invent.</p>
+<details><summary>Deep dive</summary><ul>
+<li><b>Fields:</b> action (BUY/SELL, LONG and SHORT count), order type (limit, stop, now, market), symbol, entry price (and upper end of a range), stop loss price, stop loss in pips, take-profit prices, take-profit pips, lot size, and entry time window (start and end).</li>
+<li><b>Normalising:</b> LONG becomes BUY and SHORT becomes SELL. Times like <code>20.10</code> become <code>20:10</code>.</li>
+<li><b>Pending orders:</b> a limit or stop order without an entry price stays pending, so it is rejected later. It is never turned into a market order.</li>
+<li><b>Every number must appear in the message.</b> A price the model returns that is not written in the text is dropped, and the signal is rejected as a misread.</li>
+<li><b>Pips need a unit.</b> A pip value is only accepted when written next to "pips", "points" or "pts". A pip value echoed into a price field is discarded.</li>
+<li><b>Is it a signal?</b> Only if a side and a symbol are found (see the default symbol below). Confidence is the lower of the side and symbol scores.</li></ul></details></li>
+
+<li class="stage"><h3>Decision: the safety checks</h3>
+<p>Plain code, not AI, decides whether the extracted trade is allowed. This is where most bad messages are stopped. The full list is in the <a href="#safety">safety rules table</a>.</p>
+<details><summary>Deep dive</summary><ul>
+<li><b>Symbol:</b> if the message names none, your default symbol is used. Aliases are mapped (GOLD to XAUUSD), checked against an allow-list, and your broker suffix is added.</li>
+<li><b>Pips to prices:</b> pip distances are converted using a per-symbol pip size (gold is 0.1, so 25 pips is 2.5). This needs an entry price.</li>
+<li><b>Time window:</b> a window like 20.10-23.20 is read in your account timezone and becomes the pending order's expiry. A window that has already passed is rejected.</li>
+<li><b>Sanity:</b> confidence threshold, stop loss required, SL and TP on the correct side of entry, TP on the profit side of SL, messages older than 5 minutes ignored, max open positions.</li>
+<li><b>Sizing:</b> lot is fixed, or taken from the signal, capped at your max lot and rounded to 0.01. Take-profit strategy: first, last, or split into one position per TP with the lot divided evenly.</li>
+<li><b>Dry run:</b> if on, a valid trade is built and logged but never sent.</li></ul></details></li>
+
+<li class="stage"><h3>Execution on cTrader (IC Markets)</h3>
+<p>The Worker opens a JSON WebSocket to cTrader's Open API, finds the symbol, converts lots to volume, and sends the order to your IC Markets account.</p>
+<details><summary>Deep dive</summary><ul>
+<li><b>Connection:</b> <code>wss://demo.ctraderapi.com:5036</code> or <code>live.ctraderapi.com:5036</code>, authorised with an OAuth token that refreshes automatically.</li>
+<li><b>Market orders:</b> cTrader does not accept absolute SL/TP on market orders. So the Worker takes a spot quote (ask for BUY, bid for SELL), sends relative SL/TP, waits for the fill, then amends the position to the exact SL/TP prices.</li>
+<li><b>Limit and stop orders:</b> sent with absolute SL/TP. If there is an entry window, the order is good till date and expires at the end of it.</li>
+<li><b>Record:</b> each order request and response is stored in D1 and shown in the dashboard, including failures. Status ends as executed, partial or failed.</li></ul></details></li>
+</ol>
+</div></section>
+
+<section class="s alt" id="example" aria-labelledby="ex-title"><div class="wrap">
+<h2 id="ex-title">One message, followed through</h2>
+<p class="lede">Illustrative example. Prices and results are for explanation only. Default symbol is set to XAUUSD, timezone is Asia/Jakarta (WIB), pip size for gold is 0.1.</p>
+<div class="ex-grid">
+<div class="card"><h3>1. The message</h3><div class="bubble">Sell limit 4156.2 SL 25 pips tp 600 pips open / Time entry:20.10-23.20</div>
+<p class="note">No symbol is named, so the default symbol is used.</p></div>
+<div class="card"><h3>2. Extracted fields</h3><dl class="kv">
+<dt>action</dt><dd>SELL</dd><dt>order type</dt><dd>LIMIT</dd><dt>symbol</dt><dd>none, default XAUUSD</dd><dt>entry</dt><dd>4156.2</dd><dt>SL in pips</dt><dd>25</dd><dt>TP in pips</dt><dd>[600]</dd><dt>window</dt><dd>20:10 to 23:20</dd></dl></div>
+<div class="card"><h3>3. Decision</h3><dl class="kv">
+<dt>SL</dt><dd>4156.2 + 25 x 0.1 = 4158.7</dd><dt>TP</dt><dd>4156.2 - 600 x 0.1 = 4096.2</dd><dt>expiry</dt><dd>23:20 WIB today</dd><dt>checks</dt><dd><span class="ok">SL above entry, TP below: correct for a sell</span></dd></dl></div>
+<div class="card"><h3>4. The order</h3><dl class="kv">
+<dt>type</dt><dd>SELL_LIMIT XAUUSD</dd><dt>price</dt><dd>4156.2</dd><dt>SL / TP</dt><dd>4158.7 / 4096.2</dd><dt>time in force</dt><dd>good till 23:20 WIB</dd><dt>lot</dt><dd>from your settings</dd></dl></div>
+</div>
+<h3 style="margin-top:40px">Messages that are stopped</h3>
+<div class="rej">
+<div class="card"><div class="bubble">BUY LIMIT GOLD SL 2330 TP 2360</div><span class="tag bad">Rejected</span><p>A limit order needs an entry price. It stays a pending order with no entry and is refused, never turned into a market order.</p></div>
+<div class="card"><div class="bubble">Sell now SL 25 pips TP 60 pips</div><span class="tag bad">Rejected</span><p>Pips are distances from an entry price, and the message has none. Without an entry, the pips cannot become prices.</p></div>
+<div class="card"><div class="bubble">Message says "SL 2318"; model returns SL 2381</div><span class="tag bad">Rejected</span><p>Misread price: 2381 is not written anywhere in the message, so it is dropped and the signal is refused rather than guessed.</p></div>
+</div>
+</div></section>
+
+<section class="s" id="safety" aria-labelledby="safety-title"><div class="wrap">
+<h2 id="safety-title">Safety rules</h2>
+<p class="lede">These run on every signal before any order is sent. Most are settings you control in the dashboard.</p>
+<div class="tw" role="region" aria-label="Safety rules table" tabindex="0"><table>
+<thead><tr><th scope="col">Rule</th><th scope="col">What it prevents</th><th scope="col">Configurable?</th></tr></thead><tbody>
+<tr><th scope="row" style="background:none">Automation switch</th><td>Any trade when you have not turned automation on. Off by default.</td><td>Yes, on/off</td></tr>
+<tr><th scope="row" style="background:none">Dry run</th><td>Real orders while you are still testing. Orders are built and logged only.</td><td>Yes (default on)</td></tr>
+<tr><th scope="row" style="background:none">Target chat only</th><td>Trading on messages from chats you did not choose.</td><td>Yes, you pick the chat</td></tr>
+<tr><th scope="row" style="background:none">Duplicate ids ignored</th><td>The same message being traded twice.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Stale message (over 5 min)</th><td>Old messages replayed after a reconnect.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Numbers must be in the text</th><td>AI misreads and invented prices.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Pips need a unit</th><td>A price mistaken for a pip distance.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Pending needs an entry</th><td>A limit or stop order silently becoming a market order.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Confidence threshold</th><td>Trading on uncertain extractions (default 0.6).</td><td>Yes</td></tr>
+<tr><th scope="row" style="background:none">Stop loss required</th><td>Trades with no downside limit (default on).</td><td>Yes</td></tr>
+<tr><th scope="row" style="background:none">Side checks</th><td>SL or TP on the wrong side of entry, or TP below SL on a buy.</td><td>No</td></tr>
+<tr><th scope="row" style="background:none">Entry window</th><td>Entering after a stated time window has passed. Pending orders expire at its end.</td><td>Timezone only</td></tr>
+<tr><th scope="row" style="background:none">Symbol allow-list</th><td>Trading instruments you did not approve.</td><td>Yes</td></tr>
+<tr><th scope="row" style="background:none">Max open positions</th><td>Stacking more exposure than you intend.</td><td>Yes (0 = unlimited)</td></tr>
+<tr><th scope="row" style="background:none">Max lot</th><td>An oversized position from a lot in the message.</td><td>Yes (default 1 lot)</td></tr>
+</tbody></table></div>
+</div></section>
+
+<section id="ev" aria-labelledby="ev-title" class="s alt"><div class="wrap">
+<h2 id="ev-title">Expected value: is a strategy worth following?</h2>
+<p class="ev-intro">Expected value (EV) is what a strategy earns on average per trade after costs. A high win rate means nothing by itself: winning 80% of trades still loses money if the average loss is much bigger than the average win. What matters is the win rate together with the risk-to-reward ratio. Try your own numbers below.</p>
+<div id="ev-app"></div>
+</div></section>
+
+<section class="s" id="glossary" aria-labelledby="gl-title"><div class="wrap">
+<h2 id="gl-title">Glossary</h2>
+<dl class="gl">
+<div><dt>Stop loss (SL)</dt><dd>A price at which the trade closes automatically to cap your loss.</dd></div>
+<div><dt>Take profit (TP)</dt><dd>A price at which the trade closes automatically to lock in a gain.</dd></div>
+<div><dt>Lot</dt><dd>The trade size. 0.01 lot is the smallest step here; what a lot is worth depends on the instrument.</dd></div>
+<div><dt>Pip</dt><dd>A small price unit. Its size depends on the instrument: 0.0001 for most pairs, 0.01 for JPY pairs, 0.1 for gold in this setup.</dd></div>
+<div><dt>R multiple</dt><dd>Profit or loss measured in units of your initial risk. Risk 25 pips and make 50: that is +2R.</dd></div>
+<div><dt>Spread</dt><dd>The gap between the buy price (ask) and sell price (bid). It is a cost on every trade; buys fill at the ask, sells at the bid.</dd></div>
+<div><dt>Market order</dt><dd>Fills now at the current price.</dd></div>
+<div><dt>Limit order</dt><dd>Waits for a better price: buy below the market or sell above it.</dd></div>
+<div><dt>Stop order</dt><dd>Waits for the price to move through a level: buy above the market or sell below it.</dd></div>
+<div><dt>GTD expiry</dt><dd>Good till date: a pending order is cancelled automatically at a set time, here the end of the entry window.</dd></div>
+</dl>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+<p class="risk"><strong>Risk disclaimer.</strong> Trading leveraged products such as forex and CFDs carries a high risk of losing more than you can afford. Automation can fail or misread a message, and a fast order can still fill at a worse price. Examples on this page are illustrative. Nothing here is financial advice. InfraGreen is not affiliated with or endorsed by WhatsApp or Meta, Telegram, Spotware or cTrader, or IC Markets.</p>
+<div class="row"><span>&copy; 2026 InfraGreen</span><span><a href="https://landing.infragreen.app">InfraGreen</a> &middot; <a href="https://trading.infragreen.app">Open dashboard</a></span></div>
+</div></footer>
+<script type="module" src="/ev.js"></script>
+</body>
+</html>

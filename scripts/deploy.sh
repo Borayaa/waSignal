@@ -139,6 +139,10 @@ fi
 say "Deploying landing page to https://landing.infragreen.app"
 npx wrangler deploy -c landing/wrangler.jsonc
 
+# ---------- Briefing page ----------
+say "Deploying briefing page to https://briefing.infragreen.app"
+npx wrangler deploy -c briefing/wrangler.jsonc
+
 # ---------- Bridge config ----------
 BRIDGE_ENV="bridge/.env"
 if [[ -n "$NEW_BRIDGE_TOKEN" ]]; then
