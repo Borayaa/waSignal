@@ -136,7 +136,7 @@ else
 fi
 
 # ---------- Landing page ----------
-say "Deploying landing page to https://infragreen.app"
+say "Deploying landing page to https://landing.infragreen.app"
 npx wrangler deploy -c landing/wrangler.jsonc
 
 # ---------- Bridge config ----------

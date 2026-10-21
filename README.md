@@ -53,7 +53,7 @@ WhatsApp/Telegram     Bridge Service             Cloudflare Worker    Cloudflare
 - **migrations/0002_costs.sql** — D1 tables: usage_logs (for billing)
 - **bridge/** — Baileys Node.js service (separate npm package, runs on VPS/home server/Docker)
 - **docs/API.md** — complete HTTP API reference (v3 section covers cTrader endpoints)
-- **landing/** — static marketing page for https://infragreen.app (own Worker, `landing/wrangler.jsonc`; deployed by `scripts/deploy.sh`)
+- **landing/** — static marketing page for https://landing.infragreen.app (own Worker, `landing/wrangler.jsonc`; deployed by `scripts/deploy.sh`)
 - **docs/CTRADER.md** — cTrader Open API architecture, OAuth flow, WebSocket protocol
 
 ## Set Up cTrader Open API

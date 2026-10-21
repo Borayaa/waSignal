@@ -4,10 +4,10 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": false,
   "preview_urls": false,
-  // Marketing landing page. The trading app itself lives at trading.infragreen.app (root wrangler.jsonc).
+  // Marketing landing page at landing.infragreen.app. The trading app is trading.infragreen.app (root wrangler.jsonc);
+  // the apex infragreen.app is served by the separate solar-map Worker (../solar_map).
   "routes": [
-    { "pattern": "infragreen.app", "custom_domain": true },
-    { "pattern": "www.infragreen.app", "custom_domain": true }
+    { "pattern": "landing.infragreen.app", "custom_domain": true }
   ],
   // Static-only Worker: no script, assets served directly.
   "assets": { "directory": "public", "not_found_handling": "404-page" },
