@@ -7,6 +7,8 @@ export { BrokerError } from './ctauth';
 const SYMBOL_TTL_MS = 24 * 60 * 60 * 1000;
 const PRICE_SCALE = 100_000; // spot prices and relative SL/TP are in 1/100000 of a price unit
 const LABEL = 'waSignal';
+const TIF_GOOD_TILL_DATE = 1; // ProtoOATimeInForce.GOOD_TILL_DATE
+const MIN_EXPIRY_AHEAD_MS = 60_000;
 
 interface SymbolInfo {
   symbolId: number;
@@ -243,6 +245,7 @@ export class BrokerClient {
           stopLoss: num(o.stopLoss),
           takeProfit: num(o.takeProfit),
           createdAt: Number(o.tradeData.openTimestamp ?? 0),
+          expiresAt: num(o.expirationTimestamp) != null ? Number(o.expirationTimestamp) : null,
         };
       });
     });
@@ -302,6 +305,13 @@ export class BrokerClient {
     const kind = (m[2] ?? 'MARKET') as 'MARKET' | 'LIMIT' | 'STOP';
     if (kind !== 'MARKET' && req.price == null) throw new BrokerError(`${kind} order requires a price`, 400);
 
+    let expiresAt: number | null = null;
+    if (kind !== 'MARKET' && req.expires_at != null) {
+      const e = Number(req.expires_at);
+      if (!Number.isFinite(e) || e < Date.now() + MIN_EXPIRY_AHEAD_MS) throw new BrokerError('expires_at must be at least 60 s in the future', 400);
+      expiresAt = Math.floor(e);
+    }
+
     return this.run(async (s) => {
       const info = await this.resolveSymbol(s, req.symbol);
       const volume = this.toVolume(info, req.volume);
@@ -336,6 +346,10 @@ export class BrokerClient {
         payload[kind === 'LIMIT' ? 'limitPrice' : 'stopPrice'] = px(req.price as number);
         if (sl != null) payload.stopLoss = sl;
         if (tp != null) payload.takeProfit = tp;
+        if (expiresAt != null) {
+          payload.timeInForce = TIF_GOOD_TILL_DATE;
+          payload.expirationTimestamp = expiresAt;
+        }
       }
 
       const ev = await s.sendAndWait<Msg>(PT.NEW_ORDER_REQ, payload, (x) => this.orderOutcome(x, kind), 15_000, () => {
@@ -350,6 +364,7 @@ export class BrokerClient {
         price: num(p.deal?.executionPrice) ?? num(p.order?.executionPrice) ?? num(p.position?.price) ?? null,
         volumeLots: this.lots(info, p.deal?.filledVolume ?? p.order?.tradeData?.volume ?? volume),
         warning: null,
+        ...(expiresAt != null ? { expiresAt } : {}),
       };
 
       if (kind === 'MARKET' && positionId != null && (sl != null || tp != null)) {

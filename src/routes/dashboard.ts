@@ -48,6 +48,23 @@ function cleanConfig(raw: unknown): Partial<AutomationConfig> {
     for (const [k, v] of Object.entries(r.symbolMap)) if (typeof v === 'string' && k.trim() && v.trim()) m[k.trim().toUpperCase()] = v.trim();
     out.symbolMap = m;
   }
+  if (typeof r.defaultSymbol === 'string') {
+    const d = r.defaultSymbol.trim().toUpperCase();
+    if (d.length <= 20 && /^[A-Z0-9._]*$/.test(d)) out.defaultSymbol = d;
+  }
+  if (r.pipSizes && typeof r.pipSizes === 'object' && !Array.isArray(r.pipSizes)) {
+    const p: Record<string, number> = {};
+    for (const [k, v] of Object.entries(r.pipSizes)) if (typeof v === 'number' && Number.isFinite(v) && v > 0 && k.trim()) p[k.trim().toUpperCase()] = v;
+    out.pipSizes = p;
+  }
+  if (typeof r.timezone === 'string' && r.timezone.trim()) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: r.timezone.trim() });
+      out.timezone = r.timezone.trim();
+    } catch {
+      /* invalid zone ignored */
+    }
+  }
   if (Array.isArray(r.allowedSymbols)) out.allowedSymbols = r.allowedSymbols.filter((s): s is string => typeof s === 'string' && !!s.trim()).map((s) => s.trim().toUpperCase());
   return out;
 }

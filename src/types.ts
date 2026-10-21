@@ -43,6 +43,9 @@ export interface AutomationConfig {
   allowedSymbols: string[]; // empty = allow all (compared after mapping, before suffix)
   maxOpenPositions: number; // 0 = unlimited; skip new signals when reached
   commentPrefix: string; // trade comment, e.g. "waSignal"
+  defaultSymbol: string; // used when a message names no symbol (e.g. a gold-only group); '' = require a symbol
+  pipSizes: Record<string, number>; // broker symbol (after mapping, before suffix) -> price size of 1 pip; fallback: JPY pairs 0.01, else 0.0001
+  timezone: string; // IANA zone for "time entry" windows in messages, e.g. "Asia/Jakarta"
 }
 
 export const DEFAULT_CONFIG: AutomationConfig = {
@@ -59,6 +62,9 @@ export const DEFAULT_CONFIG: AutomationConfig = {
   allowedSymbols: [],
   maxOpenPositions: 0,
   commentPrefix: 'waSignal',
+  defaultSymbol: '',
+  pipSizes: { XAUUSD: 0.1, XAGUSD: 0.01, US30: 1, NAS100: 1 },
+  timezone: 'Asia/Jakarta',
 };
 
 export interface AccountSettings {
@@ -80,6 +86,10 @@ export interface ExtractionResult {
   stopLoss: number | null;
   takeProfits: number[];
   volume: number | null;
+  stopLossPips: number | null; // SL given as a distance in pips ("SL 25 pips"); converted with pipSizes
+  takeProfitPips: number[]; // TP distances in pips ("TP 600 pips")
+  entryWindow: { start: string; end: string } | null; // "Time entry 20.10-23.20" → { start: "20:10", end: "23:20" } (account timezone)
+  symbolFromDefault: boolean; // true when rawSymbol came from config.defaultSymbol
   confidence: number; // min confidence across the required fields (side, symbol)
   fields: Record<string, { value: unknown; confidence: number | null }>; // per-field raw answers
 }
@@ -106,6 +116,7 @@ export interface OrderRequest {
   stop_loss?: number;
   take_profit?: number;
   comment?: string;
+  expires_at?: number; // unix ms; pending orders only (cTrader expirationTimestamp, GOOD_TILL_DATE)
 }
 
 export type SignalStatus =
@@ -192,7 +203,7 @@ export interface Position {
 }
 export interface PendingOrder {
   orderId: number; symbol: string; side: TradeSide; type: 'LIMIT' | 'STOP' | string; volumeLots: number;
-  price: number | null; stopLoss: number | null; takeProfit: number | null; createdAt: number;
+  price: number | null; stopLoss: number | null; takeProfit: number | null; createdAt: number; expiresAt: number | null;
 }
 export interface Deal {
   dealId: number; positionId: number; symbol: string; side: TradeSide; volumeLots: number; price: number;
@@ -202,6 +213,8 @@ export interface TradeResult {
   ok: true; positionId: number | null; orderId: number | null; price: number | null; volumeLots: number;
   /** Set when a non-fatal step failed (e.g. exact SL/TP amend after a market fill). */
   warning?: string | null;
+  /** Pending-order expiry (unix ms) when one was set. */
+  expiresAt?: number;
 }
 
 // ---------- Costs ----------

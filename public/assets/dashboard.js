@@ -174,7 +174,27 @@ function renderSignals() {
   box.innerHTML = signals.map((s) => {
     const src = s.source === 'telegram' ? 'telegram' : 'whatsapp';
     const sig = s.signal;
-    const summary = sig ? `<div class="mono small" style="margin-top:6px"><span class="badge b-${esc(sig.side)}">${esc(sig.side)}</span> <b>${esc(sig.symbol)}</b> · entry ${num(sig.entry, 5)} · SL ${num(sig.stopLoss, 5)} · TP ${esc((sig.takeProfits || []).join(', ') || '—')}</div>` : '';
+    const ex = s.extraction || {};
+    let summary = sig ? `<div class="mono small" style="margin-top:6px"><span class="badge b-${esc(sig.side)}">${esc(sig.side)}</span> <b>${esc(sig.symbol)}</b> · entry ${num(sig.entry, 5)} · SL ${num(sig.stopLoss, 5)} · TP ${esc((sig.takeProfits || []).join(', ') || '—')}</div>` : '';
+    // Add extraction details if present
+    if (s.extraction && !sig) {
+      let extras = '';
+      if (ex.symbolFromDefault) extras += ' <span class="small muted">(default symbol)</span>';
+      if (ex.entryWindow) extras += ` · entry window ${esc(ex.entryWindow.start)}–${esc(ex.entryWindow.end)}`;
+      const pipSize = settings?.config?.pipSizes?.[ex.rawSymbol] || (ex.rawSymbol?.includes('JPY') ? 0.01 : 0.0001);
+      if (typeof ex.stopLossPips === 'number' && typeof ex.entry === 'number') {
+        const slPrice = (ex.side === 'BUY' ? ex.entry - ex.stopLossPips * pipSize : ex.entry + ex.stopLossPips * pipSize).toFixed(5);
+        extras += ` · SL ${ex.stopLossPips}p→${slPrice}`;
+      }
+      if (ex.takeProfitPips && ex.takeProfitPips.length > 0 && typeof ex.entry === 'number') {
+        const tps = ex.takeProfitPips.map((tp) => {
+          const tpPrice = (ex.side === 'BUY' ? ex.entry + tp * pipSize : ex.entry - tp * pipSize).toFixed(5);
+          return `${tp}p→${tpPrice}`;
+        }).join(', ');
+        extras += ` · TP ${tps}`;
+      }
+      summary = `<div class="mono small" style="margin-top:6px"><span class="badge b-${esc(ex.side || '')}">${esc(ex.side || '?')}</span> <b>${esc(ex.rawSymbol || '?')}</b>${extras}</div>`;
+    }
     return `<article class="sig s-${esc(s.status)}"><div class="meta"><span class="badge b-${esc(s.status)}">${esc(s.status === 'received' ? 'Queued' : String(s.status).replace('_', ' '))}</span>
       <span class="badge b-${src}">${src === 'telegram' ? 'Telegram' : 'WhatsApp'}</span><span>${esc(s.sender || 'unknown')}</span><span class="mono">${esc(fmtTime(s.receivedAt))}</span></div>
       <div class="txt">${esc(s.text)}</div>${summary}${s.reason ? `<div class="reason">${esc(s.reason)}</div>` : ''}
@@ -301,11 +321,13 @@ function renderTgChats() {
 // ---------- automation ----------
 const swRow = (id, label, checked, hint = '') => `<label class="sw"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span>${label}${hint ? `<div class="hint">${hint}</div>` : ''}</span></label>`;
 const TP_HELP = { first: 'Single position targeting TP1 (closest take profit).', last: 'Single position targeting the final TP.', split: 'One position per TP; lot divided evenly (min 0.01 each).' };
-let mapRows = [], allowed = [];
+let mapRows = [], pipRows = [], allowed = [];
 async function initAuto() {
   await loadSettings();
   const c = settings.config;
-  mapRows = Object.entries(c.symbolMap || {}); allowed = [...(c.allowedSymbols || [])];
+  mapRows = Object.entries(c.symbolMap || {}); pipRows = Object.entries(c.pipSizes || {}); allowed = [...(c.allowedSymbols || [])];
+  const tzOptions = ['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura', 'Asia/Singapore', 'Europe/London', 'UTC', 'America/New_York'];
+  const tzOpts = tzOptions.includes(c.timezone) ? '' : `<option value="${esc(c.timezone)}">${esc(c.timezone)}</option>`;
   $('#auto').innerHTML = `<form class="card" id="cfgForm"><h3 style="margin-bottom:12px">Automation config</h3>
     ${swRow('f_enabled', 'Enabled', c.enabled, 'Master switch: execute trades from incoming signals')}
     ${swRow('f_dryRun', 'Dry run', c.dryRun, 'Build the JSON but never send orders')}
@@ -321,15 +343,20 @@ async function initAuto() {
     <div class="formgrid"><label class="field"><span>Symbol suffix</span><input type="text" id="f_suffix" value="${esc(c.symbolSuffix)}" placeholder="(empty for IC Markets)"></label>
     <label class="field"><span>Comment prefix</span><input type="text" id="f_prefix" value="${esc(c.commentPrefix)}"></label></div>
     <div class="field"><span>Symbol map (alias → broker symbol)</span><div class="hint">IC Markets gold is <span class="mono">XAUUSD</span>, so map <span class="mono">GOLD</span> → <span class="mono">XAUUSD</span>. The suffix is normally empty.</div><div id="mapRows"></div><button type="button" class="btn sm" id="addMap">+ Add mapping</button></div>
+    <div class="field"><span>Default symbol</span><input type="text" id="f_defSym" value="${esc(c.defaultSymbol)}" placeholder="XAUUSD" maxlength="20"><div class="hint">Used when a message doesn't name a symbol — e.g. XAUUSD for a gold-only group. Leave empty to require a symbol.</div></div>
+    <div class="field"><span>Pip sizes (symbol → price size of 1 pip)</span><div class="hint">Used to convert 'SL 25 pips' into a price. Gold on IC Markets: 1 pip = 0.1. Symbols not listed: JPY pairs 0.01, others 0.0001.</div><div id="pipRows"></div><button type="button" class="btn sm" id="addPip">+ Add pip size</button></div>
+    <div class="field"><span>Timezone</span><select id="f_tz">${tzOpts}${tzOptions.map((z) => `<option value="${esc(z)}" ${z === c.timezone ? 'selected' : ''}>${esc(z)}</option>`).join('')}</select><div class="hint">Used for 'Time entry 20:10-23:20' windows — pending orders expire at the window end.</div></div>
     <div class="field"><span>Allowed symbols (empty = all)</span><input type="text" id="f_allowed" placeholder="Type symbol, press Enter or comma"><div class="chips" id="chips"></div></div>
     <button class="btn primary" type="submit">Save config</button></form>
     <div class="grid" style="align-content:start"><div class="card" id="ctCard"></div></div>`;
   $('#f_lotMode').value = c.lotMode; $('#f_tp').value = c.tpStrategy;
   const upd = () => { $('#confV').textContent = Number($('#f_conf').value).toFixed(2); $('#tpHelp').textContent = TP_HELP[$('#f_tp').value]; };
   $('#f_conf').oninput = upd; $('#f_tp').onchange = upd; upd();
-  renderMap(); renderChips();
+  renderMap(); renderPips(); renderChips();
   $('#addMap').onclick = () => { syncMap(); mapRows.push(['', '']); renderMap(); };
   $('#mapRows').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (b) { syncMap(); mapRows.splice(+b.dataset.rm, 1); renderMap(); } });
+  $('#addPip').onclick = () => { syncPips(); pipRows.push(['', '']); renderPips(); };
+  $('#pipRows').addEventListener('click', (e) => { const b = e.target.closest('[data-rp]'); if (b) { syncPips(); pipRows.splice(+b.dataset.rp, 1); renderPips(); } });
   const addChip = () => { const inp = $('#f_allowed'); inp.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean).forEach((s) => { if (!allowed.includes(s)) allowed.push(s); }); inp.value = ''; renderChips(); };
   $('#f_allowed').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addChip(); } });
   $('#f_allowed').addEventListener('blur', addChip);
@@ -341,13 +368,19 @@ function renderMap() {
   $('#mapRows').innerHTML = mapRows.map(([k, v], i) => `<div class="maprow"><input type="text" data-mk value="${esc(k)}" placeholder="ALIAS" aria-label="Alias"><input type="text" data-mv value="${esc(v)}" placeholder="BROKER" aria-label="Broker symbol"><button type="button" class="btn sm" data-rm="${i}" aria-label="Remove">✕</button></div>`).join('');
 }
 function syncMap() { mapRows = [...document.querySelectorAll('#mapRows .maprow')].map((r) => [r.querySelector('[data-mk]').value, r.querySelector('[data-mv]').value]); }
+function renderPips() {
+  $('#pipRows').innerHTML = pipRows.map(([k, v], i) => `<div class="maprow"><input type="text" data-pk value="${esc(k)}" placeholder="SYMBOL" aria-label="Symbol"><input type="number" data-pv value="${esc(v)}" placeholder="0.1" step="0.0001" min="0" aria-label="Pip size"><button type="button" class="btn sm" data-rp="${i}" aria-label="Remove">✕</button></div>`).join('');
+}
+function syncPips() { pipRows = [...document.querySelectorAll('#pipRows .maprow')].map((r) => [r.querySelector('[data-pk]').value, parseFloat(r.querySelector('[data-pv]').value) || '']); }
 function renderChips() { $('#chips').innerHTML = allowed.map((s, i) => `<span class="chip">${esc(s)}<button type="button" data-rc="${i}" aria-label="Remove ${esc(s)}">×</button></span>`).join(''); }
 async function saveCfg(e) {
-  e.preventDefault(); syncMap();
+  e.preventDefault(); syncMap(); syncPips();
   const symbolMap = {}; mapRows.forEach(([k, v]) => { if (k.trim() && v.trim()) symbolMap[k.trim().toUpperCase()] = v.trim(); });
+  const pipSizes = {}; pipRows.forEach(([k, v]) => { if (k.trim() && v !== '') pipSizes[k.trim().toUpperCase()] = parseFloat(v) || 0; });
   const config = { enabled: $('#f_enabled').checked, dryRun: $('#f_dryRun').checked, lotMode: $('#f_lotMode').value, fixedLot: parseFloat($('#f_fixedLot').value),
     maxLot: parseFloat($('#f_maxLot').value), tpStrategy: $('#f_tp').value, minConfidence: parseFloat($('#f_conf').value), requireStopLoss: $('#f_reqSl').checked,
-    symbolSuffix: $('#f_suffix').value.trim(), symbolMap, allowedSymbols: allowed, maxOpenPositions: parseInt($('#f_maxOpen').value, 10) || 0, commentPrefix: $('#f_prefix').value.trim() };
+    symbolSuffix: $('#f_suffix').value.trim(), symbolMap, allowedSymbols: allowed, maxOpenPositions: parseInt($('#f_maxOpen').value, 10) || 0, commentPrefix: $('#f_prefix').value.trim(),
+    defaultSymbol: $('#f_defSym').value.trim().toUpperCase(), pipSizes, timezone: $('#f_tz').value };
   if (config.enabled && !config.dryRun && !confirm('LIVE trading will be enabled: signals will place REAL orders. Continue?')) return;
   try { settings = await put('/api/settings', { config }); setPill(settings.config); toast('Config saved'); } catch (ex) { fail(ex); }
 }
@@ -460,9 +493,30 @@ function initPlay() {
 }
 function renderPlay(r) {
   const ex = r.extraction || {};
-  const head = `<p><span class="badge ${ex.isSignal ? 'b-ok' : 'b-ignored'}">${ex.isSignal ? 'signal' : 'not a signal'}</span> ${ex.side ? `<span class="badge b-${esc(ex.side)}">${esc(ex.side)}</span>` : ''} <b class="mono">${esc(ex.rawSymbol || '')}</b> <span class="muted small">${esc(ex.orderKind || '')}</span></p>`;
+  const symNote = ex.symbolFromDefault ? ' <span class="small muted" style="margin-left:6px">from default</span>' : '';
+  const entryWin = ex.entryWindow ? `<div style="margin-top:4px"><span class="badge b-ok">Entry window</span> ${esc(ex.entryWindow.start)}–${esc(ex.entryWindow.end)} ${esc(settings?.config?.timezone || 'Asia/Jakarta')}</div>` : '';
+  let pipInfo = '';
+  if (typeof ex.stopLossPips === 'number' && typeof ex.entry === 'number') {
+    const pipSize = settings?.config?.pipSizes?.[ex.rawSymbol] || (ex.rawSymbol?.includes('JPY') ? 0.01 : 0.0001);
+    const slPrice = (ex.side === 'BUY' ? ex.entry - ex.stopLossPips * pipSize : ex.entry + ex.stopLossPips * pipSize).toFixed(5);
+    pipInfo += `<div style="margin-top:4px"><span class="small">SL ${esc(ex.stopLossPips)} pips → ${esc(slPrice)}</span></div>`;
+  }
+  if (ex.takeProfitPips && ex.takeProfitPips.length > 0 && typeof ex.entry === 'number') {
+    const pipSize = settings?.config?.pipSizes?.[ex.rawSymbol] || (ex.rawSymbol?.includes('JPY') ? 0.01 : 0.0001);
+    ex.takeProfitPips.forEach((tp, i) => {
+      const tpPrice = (ex.side === 'BUY' ? ex.entry + tp * pipSize : ex.entry - tp * pipSize).toFixed(5);
+      pipInfo += `<div style="margin-top:2px"><span class="small">TP${i + 1} ${esc(tp)} pips → ${esc(tpPrice)}</span></div>`;
+    });
+  }
+  const head = `<p><span class="badge ${ex.isSignal ? 'b-ok' : 'b-ignored'}">${ex.isSignal ? 'signal' : 'not a signal'}</span> ${ex.side ? `<span class="badge b-${esc(ex.side)}">${esc(ex.side)}</span>` : ''} <b class="mono">${esc(ex.rawSymbol || '')}</b>${symNote} <span class="muted small">${esc(ex.orderKind || '')}</span></p>`;
   const bars = confRow('overall', ex.confidence) + Object.entries(ex.fields || {}).map(([k, f]) => confRow(k, f?.confidence, f?.value)).join('');
-  $('#pOut').innerHTML = head + `<h3>Confidence</h3><div style="margin:6px 0 12px">${bars}</div>` +
+  const sig = r.signal || {};
+  const orderNotes = (sig.orders || []).filter((o) => o.expires_at).map((o) => {
+    const d = new Date(o.expires_at);
+    const tm = isNaN(d) ? '—' : d.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<div style="margin-top:2px"><span class="small">Expires ${tm} (local time)</span></div>`;
+  }).join('');
+  $('#pOut').innerHTML = head + entryWin + pipInfo + orderNotes + `<h3 style="margin-top:12px">Confidence</h3><div style="margin:6px 0 12px">${bars}</div>` +
     ((r.errors || []).length ? `<div class="inline-err">${r.errors.map(esc).join('<br>')}</div>` : '') +
     `<h3>Trade signal</h3><pre>${r.signal ? json(r.signal) : 'null'}</pre><h3 style="margin-top:10px">Extraction</h3><pre>${json(ex)}</pre>` +
     (r.results ? `<h3 style="margin-top:10px">Execution results</h3><pre>${json(r.results)}</pre>` : '');

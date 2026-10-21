@@ -8,9 +8,47 @@ const floorLot = (n: number) => Math.max(0.01, Math.floor(n * 100 + 1e-9) / 100)
 // Messages older than this (e.g. redelivered after a bridge reconnect) are never traded.
 const MAX_SIGNAL_AGE_MS = 5 * 60 * 1000;
 
-export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig): { signal: TradeSignal | null; errors: string[] } {
+/** Offset (ms) of `zone` from UTC at instant `at`. */
+function zoneOffsetMs(zone: string, at: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(at));
+  const g = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
+  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(at / 1000) * 1000;
+}
+
+/** Resolve today's entry window (in `zone`) to unix ms; a window with end < start crosses midnight. */
+export function resolveWindow(w: { start: string; end: string }, zone: string, now: number): { start: number; end: number } {
+  const off = zoneOffsetMs(zone, now);
+  const local = new Date(now + off); // UTC fields = wall clock in zone
+  const day0 = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+  const mins = (t: string) => { const [h, m] = t.split(':').map(Number); return (h * 60 + m) * 60000; };
+  let start = day0 + mins(w.start);
+  let end = day0 + mins(w.end);
+  if (end <= start) {
+    // crosses midnight: if we're in the early part (before end) the window started yesterday
+    if (now + off < end) start -= 86400000;
+    else end += 86400000;
+  }
+  return { start: start - off, end: end - off };
+}
+
+/** Config-aware step after extraction: fall back to cfg.defaultSymbol when the message names none. */
+export function applyDefaultSymbol(ex: ExtractionResult, cfg: AutomationConfig): ExtractionResult {
+  if (ex.rawSymbol || !ex.side || !cfg.defaultSymbol) return ex;
+  const c = ex.fields.action?.confidence;
+  return { ...ex, rawSymbol: cfg.defaultSymbol.trim().toUpperCase(), symbolFromDefault: true, isSignal: true, confidence: typeof c === 'number' ? c : 0 };
+}
+
+const decimalsOf = (n: number) => (String(n).split('.')[1] ?? '').length;
+
+export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig, now = Date.now()): { signal: TradeSignal | null; errors: string[]; notes?: string[] } {
   const errors: string[] = [];
-  if (!ex.isSignal || !ex.side || !ex.rawSymbol) return { signal: null, errors: ['not a trade signal'] };
+  const notes: string[] = [];
+  ex = applyDefaultSymbol(ex, cfg);
+  if (!ex.isSignal || !ex.side || !ex.rawSymbol) {
+    return { signal: null, errors: [ex.side ? 'not a trade signal: no symbol in message (set a default symbol in settings)' : 'not a trade signal'] };
+  }
   if (ex.confidence < cfg.minConfidence) errors.push(`confidence ${ex.confidence.toFixed(2)} below minimum ${cfg.minConfidence}`);
 
   const mapped = cfg.symbolMap[ex.rawSymbol] ?? cfg.symbolMap[ex.rawSymbol.toUpperCase()] ?? ex.rawSymbol;
@@ -19,7 +57,34 @@ export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig): {
   }
   const symbol = mapped + cfg.symbolSuffix;
 
-  const { side, orderKind, entry, stopLoss, takeProfits } = ex;
+  const { side, orderKind, entry } = ex;
+  let { stopLoss, takeProfits } = ex;
+  const pipSize = cfg.pipSizes[mapped.toUpperCase()] ?? (mapped.toUpperCase().includes('JPY') ? 0.01 : 0.0001);
+  const needSlPips = stopLoss == null && ex.stopLossPips != null;
+  const needTpPips = takeProfits.length === 0 && ex.takeProfitPips.length > 0;
+  if ((needSlPips || needTpPips) && entry == null) {
+    errors.push('SL/TP given in pips needs an entry price');
+  } else if (entry != null) {
+    const dec = decimalsOf(entry);
+    const r = (n: number) => Number(n.toFixed(dec || 5));
+    const dirp = side === 'BUY' ? 1 : -1;
+    if (needSlPips) stopLoss = r(entry - dirp * ex.stopLossPips! * pipSize);
+    if (needTpPips) takeProfits = ex.takeProfitPips.map((p) => r(entry + dirp * p * pipSize));
+  }
+  let expiresAt: number | undefined;
+  if (ex.entryWindow) {
+    let w: { start: number; end: number } | null = null;
+    try { w = resolveWindow(ex.entryWindow, cfg.timezone, now); } catch { errors.push(`invalid timezone ${cfg.timezone}`); }
+    if (w) {
+      const label = `${ex.entryWindow.start}–${ex.entryWindow.end}`;
+      if (now > w.end) errors.push(`entry window ${label} has passed`);
+      else if (orderKind === 'MARKET' && now < w.start) errors.push(`entry window ${label} has not started`);
+      else {
+        if (now < w.start) notes.push(`entry window ${label} not started yet; pending order placed`);
+        if (orderKind !== 'MARKET') expiresAt = w.end;
+      }
+    }
+  }
   if (cfg.requireStopLoss && stopLoss == null) errors.push('stop loss required');
   if (orderKind !== 'MARKET' && entry == null) errors.push(`${orderKind} order requires an entry price`);
 
@@ -35,7 +100,7 @@ export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig): {
   // A price the model read that isn't written in the message means the extraction can't be trusted.
   const dropped = ex.fields._dropped?.value;
   if (Array.isArray(dropped) && dropped.length) errors.push(`extraction misread price(s) ${dropped.join(', ')} not found in message`);
-  if (errors.length) return { signal: null, errors };
+  if (errors.length) return { signal: null, errors, notes };
 
   let lot = cfg.lotMode === 'signal' ? (ex.volume ?? cfg.fixedLot) : cfg.fixedLot;
   lot = roundLot(Math.min(lot, cfg.maxLot));
@@ -51,10 +116,11 @@ export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig): {
     ...(orderKind !== 'MARKET' && entry != null ? { price: entry } : {}),
     ...(stopLoss != null ? { stop_loss: stopLoss } : {}),
     ...(tp != null ? { take_profit: tp } : {}),
+    ...(expiresAt != null ? { expires_at: expiresAt } : {}),
     comment: `${prefix} #${i + 1}`.slice(0, 100),
   }));
 
-  return { signal: { symbol, rawSymbol: ex.rawSymbol, side, orderKind, entry, stopLoss, takeProfits, orders, confidence: ex.confidence }, errors: [] };
+  return { signal: { symbol, rawSymbol: ex.rawSymbol, side, orderKind, entry, stopLoss, takeProfits, orders, confidence: ex.confidence }, errors: [], notes };
 }
 
 function extractTicket(res: unknown): string | null {
@@ -121,7 +187,7 @@ export async function processIncomingMessage(env: Env, accountId: string, msg: I
     try {
       const cfg = await getConfig(env, accountId);
       try {
-        extraction = await extractSignal(env, msg.text);
+        extraction = applyDefaultSymbol(await extractSignal(env, msg.text), cfg);
       } catch (e) {
         status = 'failed';
         reason = `extraction failed: ${(e as Error).message}`;
@@ -131,7 +197,7 @@ export async function processIncomingMessage(env: Env, accountId: string, msg: I
         status = 'ignored';
         reason = 'not a trade signal';
       } else {
-        const built = buildTradeSignal(extraction, cfg);
+        const built = buildTradeSignal(extraction, cfg, Date.now());
         signal = built.signal;
         if (!cfg.enabled) {
           status = 'ignored';
@@ -153,6 +219,7 @@ export async function processIncomingMessage(env: Env, accountId: string, msg: I
             }
           }
           if (!blocked) {
+            if (built.notes?.length) reason = built.notes.join('; ');
             if (cfg.dryRun) {
               status = 'dry_run';
             } else {
@@ -188,7 +255,7 @@ export async function runExtractPlayground(
   execute: boolean,
 ): Promise<{ extraction: ExtractionResult; signal: TradeSignal | null; errors: string[]; results?: unknown[] }> {
   const cfg = await getConfig(env, accountId);
-  const extraction = await extractSignal(env, text);
+  const extraction = applyDefaultSymbol(await extractSignal(env, text), cfg);
   const { signal, errors } = buildTradeSignal(extraction, cfg);
   if (!execute || !signal) return { extraction, signal, errors };
   const { results } = await executeOrders(env, accountId, null, signal.orders);
