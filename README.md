@@ -1,10 +1,10 @@
 # waSignal Trading
 
-A trading dashboard that bridges WhatsApp and Telegram trading signals directly to cTrader Open API (IC Markets) via automated trade execution. Hosted at https://trading.infragreen.app.
+A trading dashboard that bridges WhatsApp and Telegram trading signals directly to cTrader Open API (IC Markets) or OANDA v20 via automated trade execution. Hosted at https://trading.infragreen.app.
 
 ## Overview
 
-waSignal Trading automates the workflow from WhatsApp and Telegram trading signals to live trading accounts. A bridge service monitors one WhatsApp chat or Telegram channel/group for trade signals and forwards them to the Cloudflare Worker, which enqueues them in a Cloudflare Queue for processing. The queue consumer extracts structured data using Workers AI (Clairic model), validates against your automation rules, and executes trades via the cTrader Open API (~1 second per trade).
+waSignal Trading automates the workflow from WhatsApp and Telegram trading signals to live trading accounts. A bridge service monitors one WhatsApp chat or Telegram channel/group for trade signals and forwards them to the Cloudflare Worker, which enqueues them in a Cloudflare Queue for processing. The queue consumer extracts structured data using Workers AI (Clairic model), validates against your automation rules, and executes trades via cTrader Open API or OANDA v20 (~1 second per trade).
 
 ```
 WhatsApp/Telegram     Bridge Service             Cloudflare Worker    Cloudflare Queue
@@ -14,7 +14,7 @@ WhatsApp/Telegram     Bridge Service             Cloudflare Worker    Cloudflare
                   bridge/auth/                                   (Workers AI model)
                                                                        ↓
                                             Signal validation         cTrader Open API
-                                            (automation rules)        (IC Markets)
+                                            (automation rules)      or OANDA v20
                                                  ↓
                                         Trade execution
                                       (demo or live account)
@@ -56,7 +56,11 @@ WhatsApp/Telegram     Bridge Service             Cloudflare Worker    Cloudflare
 - **landing/** — static marketing page for https://landing.infragreen.app (own Worker, `landing/wrangler.jsonc`; deployed by `scripts/deploy.sh`)
 - **docs/CTRADER.md** — cTrader Open API architecture, OAuth flow, WebSocket protocol
 
-## Set Up cTrader Open API
+## Set Up cTrader Open API or OANDA
+
+Choose one broker for your dashboard account. You can switch brokers at any time in the Automation tab.
+
+### cTrader (IC Markets)
 
 Before deploying, create a cTrader application on Spotware's developer portal:
 
@@ -68,6 +72,19 @@ Before deploying, create a cTrader application on Spotware's developer portal:
    - **Agreement**: check the terms
 3. Once created, copy the **Client ID** and **Client Secret**
 4. **Note**: Spotware may require approval (check email in 1–2 business days). New apps start in sandbox/demo mode.
+
+### OANDA
+
+OANDA requires no app approval. Sign up and configure in the dashboard:
+
+1. Open or create an OANDA account at https://www.oanda.com (available in most countries; check your region)
+2. Log in and go to **My Account** → **Manage API Access**
+3. Click **Generate Personal Access Token**
+4. Copy the token (shown once; save it securely)
+5. In the dashboard, go to **Automation** → **Broker** → **OANDA**
+6. Paste the token, choose **Practice** (demo) or **Live**
+7. Select one of your OANDA accounts
+8. Automation will automatically convert XAUUSD ↔ XAU_USD and adjust lot sizes for OANDA's units
 
 ## Deploy to Cloudflare
 
@@ -225,14 +242,22 @@ The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions 
    - **Label**: optional, for your reference
    - The invite code is required to create an account (if `INVITE_CODE` is set); afterwards just sign in with username + password
 
-### cTrader Account Setup
+### Broker Account Setup (cTrader or OANDA)
 
-1. **Automation tab** → click **Connect with cTrader**
-   - You'll be redirected to IC Markets cTrader login
-   - Log in with your IC Markets username/password
-   - Authorize waSignal to access your account (one-time)
-   - Select **demo** or **live** trading account
-2. The connection is now active; you can execute trades via signals
+Each dashboard account picks one broker in the **Automation** tab.
+
+**cTrader (IC Markets):**
+1. Click **Connect with cTrader**
+2. You'll be redirected to IC Markets cTrader login
+3. Log in with your IC Markets username/password
+4. Authorize waSignal to access your account (one-time)
+5. Select **demo** or **live** trading account
+
+**OANDA:**
+1. Click **Connect OANDA**
+2. Paste your personal access token (from **My Account** → **Manage API Access**)
+3. Choose **Practice** (demo) or **Live**
+4. Select one of your OANDA accounts
 
 ### Sources Setup (WhatsApp and/or Telegram)
 
@@ -288,7 +313,9 @@ Typical monthly cost: **$0** on Workers Free plan.
 
 If you outgrow the free tier, upgrade to **Workers Paid** ($5/mo), which includes significantly higher limits.
 
-**cTrader Open API**: Free. Spread and commission charged by IC Markets (standard forex/CFD rates), not by Spotware.
+**Broker APIs**: Free.
+- **cTrader Open API**: IC Markets charges only spread and commission (standard forex/CFD rates), not Spotware.
+- **OANDA v20**: OANDA charges only spread and commission (standard FX rates).
 
 **Baileys Bridge**: Runs on your own infrastructure (VPS/home server/Docker), no cost from waSignal.
 

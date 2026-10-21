@@ -155,3 +155,8 @@ dialog h3{margin-bottom:14px;font-size:15px}
 .src{align-self:start;min-width:0}
 .src h3{display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:8px}
 .src hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.seg{display:inline-flex;border:1px solid var(--border,#8884);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.seg button{background:transparent;color:var(--text);border:0;padding:8px 14px;cursor:pointer;font:inherit}
+.seg button+button{border-left:1px solid var(--border,#8884)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.warn-text{color:var(--warn)}

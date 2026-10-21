@@ -84,7 +84,7 @@ export async function computeCosts(env: Env, _accountId: string, monthParam?: st
       item: 'D1 rows written (est.)', usage: d1Writes, unit: 'rows', included: d1Included, unitPrice: 0, cost: 0,
       note: 'Free: 100,000 rows written/day included. Light signal volume stays far below this.',
     },
-    { item: 'cTrader Open API', usage: trades, unit: 'orders', included: 0, unitPrice: 0, cost: 0, note: 'Free: no per-request charge from Spotware or IC Markets for Open API access.' },
+    { item: 'Broker API (cTrader / OANDA)', usage: trades, unit: 'orders', included: 0, unitPrice: 0, cost: 0, note: 'Free: no per-request charge from Spotware / IC Markets (cTrader Open API) or OANDA (v20 REST API).' },
   ];
 
   const usageCost = r4(lines.reduce((a, l) => a + l.cost, 0));

@@ -175,6 +175,7 @@ export class BrokerClient {
       }
     }
     return {
+      broker: 'ctrader',
       ctidTraderAccountId: this.ctid,
       login: Number(t.traderLogin ?? 0),
       isLive: this.target.isLive,

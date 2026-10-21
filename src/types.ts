@@ -46,6 +46,7 @@ export interface AutomationConfig {
   defaultSymbol: string; // used when a message names no symbol (e.g. a gold-only group); '' = require a symbol
   pipSizes: Record<string, number>; // broker symbol (after mapping, before suffix) -> price size of 1 pip; fallback: JPY pairs 0.01, else 0.0001
   timezone: string; // IANA zone for "time entry" windows in messages, e.g. "Asia/Jakarta"
+  broker: 'ctrader' | 'oanda'; // which broker executes this account's trades
 }
 
 export const DEFAULT_CONFIG: AutomationConfig = {
@@ -65,6 +66,7 @@ export const DEFAULT_CONFIG: AutomationConfig = {
   defaultSymbol: '',
   pipSizes: { XAUUSD: 0.1, XAGUSD: 0.01, US30: 1, NAS100: 1 },
   timezone: 'Asia/Jakarta',
+  broker: 'ctrader',
 };
 
 export interface AccountSettings {
@@ -192,7 +194,10 @@ export interface CtraderStatus {
   selected: CtraderAccount | null;
   tokenExpiresAt: number | null;
 }
+export interface OandaAccount { id: string; alias: string | null; currency: string | null }
+export interface OandaStatus { linked: boolean; environment: 'practice' | 'live' | null; accounts: OandaAccount[]; selected: OandaAccount | null; tokenHint: string | null }
 export interface AccountInfo {
+  broker?: 'ctrader' | 'oanda'; accountId?: string; // accountId: OANDA account id
   ctidTraderAccountId: number; login: number; isLive: boolean; brokerName: string | null; currency: string | null;
   balance: number; equity: number | null; leverage: number | null; moneyDigits: number;
 }

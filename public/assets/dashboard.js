@@ -100,14 +100,19 @@ const posProfit = (p) => (typeof p.profit === 'number' ? p.profit : null);
 const plCell = (v) => (typeof v === 'number' ? `<span class="${v > 0 ? 'pos' : v < 0 ? 'neg' : ''}">${num(v)}</span>` : '—');
 const liveBadge = (isLive) => `<span class="badge ${isLive ? 'b-partial' : 'b-group'}">${isLive ? 'Live' : 'Demo'}</span>`;
 const NOT_CONNECTED = /not connected/i;
-function notConnected(on) { $('#brokerBanner').hidden = !on; }
+function brokerLabel() { return curBroker() === 'oanda' ? 'OANDA' : 'cTrader (IC Markets)'; }
+function notConnected(on) {
+  const b = $('#brokerBanner'); b.hidden = !on;
+  if (on) { b.firstChild.textContent = `Connect your ${brokerLabel()} account in Automation. `; }
+}
 function renderAcct(a, positions) {
   const sum = positions.some((p) => posProfit(p) !== null) ? positions.reduce((s, p) => s + (posProfit(p) ?? 0), 0) : null;
   $('#kpisAcct').innerHTML =
     kpi('Balance', num(a.balance), 'a') + kpi('Equity', num(a.equity), 'a') +
     kpi('Open P/L', sum === null ? '—' : `<span class="${sum > 0 ? 'pos' : sum < 0 ? 'neg' : ''}">${num(sum)}</span>`, sum !== null && sum < 0 ? 'r' : 'g') +
     kpi('Currency', esc(a.currency ?? '—')) + kpi('Leverage', a.leverage ? '1:' + esc(a.leverage) : '—') +
-    kpi('Account', `<span class="mono">${esc(a.login ?? '—')}</span> ${liveBadge(a.isLive)}`) + kpi('Broker', esc(a.brokerName ?? '—'));
+    kpi('Account', `<span class="mono">${esc(a.broker === 'oanda' ? (a.accountId ?? '—') : (a.login ?? '—'))}</span> ${liveBadge(a.isLive)}`) +
+    kpi('Broker', a.broker === 'oanda' ? `OANDA · ${a.isLive ? 'Live' : 'Practice'}` : (a.brokerName ? `cTrader · ${esc(a.brokerName)}` : 'cTrader · IC Markets'));
 }
 function renderPositions(list) {
   $('#positions').innerHTML = list.length ? list.map((p) => `<tr><td><b>${esc(p.symbol)}</b></td><td><span class="badge b-${p.side === 'BUY' ? 'BUY' : 'SELL'}">${esc(p.side || '—')}</span></td>
@@ -126,7 +131,7 @@ async function loadOverview() {
   notConnected(!!noConn);
   if (noConn) {
     $('#kpisAcct').innerHTML = '';
-    $('#positions').innerHTML = `<tr><td colspan="11" class="empty">cTrader account not connected</td></tr>`;
+    $('#positions').innerHTML = `<tr><td colspan="11" class="empty">${esc(brokerLabel())} account not connected</td></tr>`;
   } else if (rej) {
     const m = esc(rej.reason.message);
     $('#kpisAcct').innerHTML = `<div class="banner" style="grid-column:1/-1;margin:0">Account info unavailable: ${m}</div>`;
@@ -342,13 +347,13 @@ async function initAuto() {
     ${swRow('f_reqSl', 'Require stop loss', c.requireStopLoss)}
     <div class="formgrid"><label class="field"><span>Symbol suffix</span><input type="text" id="f_suffix" value="${esc(c.symbolSuffix)}" placeholder="(empty for IC Markets)"></label>
     <label class="field"><span>Comment prefix</span><input type="text" id="f_prefix" value="${esc(c.commentPrefix)}"></label></div>
-    <div class="field"><span>Symbol map (alias → broker symbol)</span><div class="hint">IC Markets gold is <span class="mono">XAUUSD</span>, so map <span class="mono">GOLD</span> → <span class="mono">XAUUSD</span>. The suffix is normally empty.</div><div id="mapRows"></div><button type="button" class="btn sm" id="addMap">+ Add mapping</button></div>
+    <div class="field"><span>Symbol map (alias → broker symbol)</span><div class="hint">For OANDA the app converts <span class="mono">XAUUSD</span> → <span class="mono">XAU_USD</span> automatically. IC Markets gold is <span class="mono">XAUUSD</span>, so map <span class="mono">GOLD</span> → <span class="mono">XAUUSD</span>. The suffix is normally empty.</div><div id="mapRows"></div><button type="button" class="btn sm" id="addMap">+ Add mapping</button></div>
     <div class="field"><span>Default symbol</span><input type="text" id="f_defSym" value="${esc(c.defaultSymbol)}" placeholder="XAUUSD" maxlength="20"><div class="hint">Used when a message doesn't name a symbol — e.g. XAUUSD for a gold-only group. Leave empty to require a symbol.</div></div>
     <div class="field"><span>Pip sizes (symbol → price size of 1 pip)</span><div class="hint">Used to convert 'SL 25 pips' into a price. Gold on IC Markets: 1 pip = 0.1. Symbols not listed: JPY pairs 0.01, others 0.0001.</div><div id="pipRows"></div><button type="button" class="btn sm" id="addPip">+ Add pip size</button></div>
     <div class="field"><span>Timezone</span><select id="f_tz">${tzOpts}${tzOptions.map((z) => `<option value="${esc(z)}" ${z === c.timezone ? 'selected' : ''}>${esc(z)}</option>`).join('')}</select><div class="hint">Used for 'Time entry 20:10-23:20' windows — pending orders expire at the window end.</div></div>
     <div class="field"><span>Allowed symbols (empty = all)</span><input type="text" id="f_allowed" placeholder="Type symbol, press Enter or comma"><div class="chips" id="chips"></div></div>
     <button class="btn primary" type="submit">Save config</button></form>
-    <div class="grid" style="align-content:start"><div class="card" id="ctCard"></div></div>`;
+    <div class="grid" style="align-content:start"><div><div class="seg" role="group" aria-label="Broker" id="brokerSeg"></div></div><div class="card" id="ctCard"></div><div class="card" id="oaCard" hidden></div></div>`;
   $('#f_lotMode').value = c.lotMode; $('#f_tp').value = c.tpStrategy;
   const upd = () => { $('#confV').textContent = Number($('#f_conf').value).toFixed(2); $('#tpHelp').textContent = TP_HELP[$('#f_tp').value]; };
   $('#f_conf').oninput = upd; $('#f_tp').onchange = upd; upd();
@@ -362,7 +367,7 @@ async function initAuto() {
   $('#f_allowed').addEventListener('blur', addChip);
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('[data-rc]'); if (b) { allowed.splice(+b.dataset.rc, 1); renderChips(); } });
   $('#cfgForm').onsubmit = saveCfg;
-  initCtrader(); renderCtrader(); loadCtrader().catch(fail);
+  initBroker(); initCtrader(); renderCtrader(); loadCtrader().catch(fail); initOanda(); renderOanda(); loadOanda().catch(fail);
 }
 function renderMap() {
   $('#mapRows').innerHTML = mapRows.map(([k, v], i) => `<div class="maprow"><input type="text" data-mk value="${esc(k)}" placeholder="ALIAS" aria-label="Alias"><input type="text" data-mv value="${esc(v)}" placeholder="BROKER" aria-label="Broker symbol"><button type="button" class="btn sm" data-rm="${i}" aria-label="Remove">✕</button></div>`).join('');
@@ -384,6 +389,93 @@ async function saveCfg(e) {
   if (config.enabled && !config.dryRun && !confirm('LIVE trading will be enabled: signals will place REAL orders. Continue?')) return;
   try { settings = await put('/api/settings', { config }); setPill(settings.config); toast('Config saved'); } catch (ex) { fail(ex); }
 }
+// ---------- broker selector + OANDA ----------
+const curBroker = () => (settings?.config?.broker === 'oanda' ? 'oanda' : 'ctrader');
+const BROKER_LABEL = { ctrader: 'cTrader (IC Markets)', oanda: 'OANDA' };
+function renderBroker() {
+  const b = curBroker();
+  const seg = $('#brokerSeg'); if (!seg) return;
+  seg.innerHTML = Object.keys(BROKER_LABEL).map((k) => `<button type="button" data-broker="${k}" aria-pressed="${k === b}">${esc(BROKER_LABEL[k])}</button>`).join('');
+  $('#ctCard').hidden = b !== 'ctrader'; $('#oaCard').hidden = b !== 'oanda';
+}
+function initBroker() {
+  renderBroker();
+  $('#brokerSeg').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-broker]'); if (!btn) return;
+    const nb = btn.dataset.broker; if (nb === curBroker()) return;
+    const c = settings.config;
+    if (c.enabled && !c.dryRun && !confirm(`Automation is LIVE. Switch broker to ${BROKER_LABEL[nb]}? New signals will place real orders there.`)) return;
+    try { settings = await put('/api/settings', { config: { broker: nb } }); setPill(settings.config); renderBroker(); toast('Broker set to ' + BROKER_LABEL[nb]); } catch (ex) { fail(ex); }
+  });
+}
+let oaStatus = null, oaReplace = false, oaErr = '';
+const oaEnvBadge = (env) => `<span class="badge ${env === 'live' ? 'b-partial' : 'b-group'}">${env === 'live' ? 'Live' : 'Practice (demo)'}</span>`;
+function renderOanda() {
+  const s = oaStatus, el = $('#oaCard'); if (!el) return;
+  const head = `<h3 style="margin-bottom:4px">OANDA connection</h3>`;
+  if (!s) { el.innerHTML = head + '<p class="muted">Loading…</p>'; return; }
+  if (!s.linked || oaReplace) {
+    el.innerHTML = head + `<form id="oaForm" novalidate autocomplete="off">
+      <label class="field"><span>Environment</span><select id="oaEnv"><option value="practice">Practice (demo)</option><option value="live" class="warn-text">Live</option></select></label>
+      <label class="field"><span>Personal access token</span><input id="oaToken" type="password" autocomplete="off" spellcheck="false" maxlength="256" required>
+        <label class="small" style="display:block;margin-top:4px"><input type="checkbox" id="oaShow"> Show token</label></label>
+      <div class="hint">In OANDA, go to My Account → Manage API Access → Generate a personal access token. Practice and live accounts have separate tokens. The token is stored encrypted.</div>
+      <div id="oaErr" class="inline-err" role="alert" ${oaErr ? '' : 'hidden'}>${esc(oaErr)}</div>
+      <div class="btns"><button type="submit" class="btn primary" id="oaSave">Save</button>${s.linked ? '<button type="button" class="btn" id="oaCancel">Cancel</button>' : ''}</div></form>`;
+    if (s.environment) $('#oaEnv').value = s.environment;
+    return;
+  }
+  const sel = s.selected?.id, accs = s.accounts || [];
+  el.innerHTML = head + `<p class="small">Environment: ${oaEnvBadge(s.environment)} · Token: <span class="mono">••••${esc(s.tokenHint || '')}</span></p>
+    <div class="field"><span>Trading account</span><div id="oaAccts" role="radiogroup" aria-label="OANDA account">${accs.length ? accs.map((a) => `<label class="sw"><input type="radio" name="oaAcct" value="${esc(a.id)}" ${a.id === sel ? 'checked' : ''}>
+      <span><span class="mono">${esc(a.id)}</span>${a.alias ? ' · ' + esc(a.alias) : ''}${a.currency ? ' · ' + esc(a.currency) : ''}</span></label>`).join('') : '<div class="empty">No accounts found. Try “Refresh accounts”.</div>'}</div></div>
+    ${!s.selected && accs.length ? '<div class="banner">Select an account to enable trading.</div>' : ''}
+    <div class="btns"><button type="button" class="btn" id="oaRefresh">Refresh accounts</button><button type="button" class="btn primary" id="oaTest">Test connection</button><button type="button" class="btn" id="oaReplace">Replace token</button><button type="button" class="btn danger" id="oaDisc">Disconnect</button></div>
+    <pre id="oaResult" hidden></pre>`;
+}
+async function loadOanda() { oaStatus = await get('/api/oanda'); renderOanda(); }
+function initOanda() {
+  const el = $('#oaCard');
+  el.addEventListener('change', async (e) => {
+    if (e.target.id === 'oaShow') { $('#oaToken').type = e.target.checked ? 'text' : 'password'; return; }
+    const r = e.target.closest('input[name=oaAcct]'); if (!r) return;
+    try { oaStatus = await put('/api/oanda/account', { accountId: r.value }); renderOanda(); toast('Account selected'); } catch (ex) { fail(ex); loadOanda().catch(() => {}); }
+  });
+  el.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = $('#oaToken').value.trim(), environment = $('#oaEnv').value;
+    const showErr = (m) => { oaErr = m; const x = $('#oaErr'); x.textContent = m; x.hidden = !m; };
+    if (!token) return showErr('Enter your personal access token.');
+    if (environment === 'live' && !confirm('Link a LIVE OANDA account? Automated trading will use real money.')) return;
+    const btn = $('#oaSave'); btn.disabled = true; showErr('');
+    try { oaStatus = await put('/api/oanda', { token, environment }); oaReplace = false; oaErr = ''; renderOanda(); toast('OANDA linked'); }
+    catch (ex) { showErr(ex.message); } finally { btn.disabled = false; }
+  });
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b || b.type === 'submit') return;
+    if (b.id === 'oaReplace') { oaReplace = true; oaErr = ''; renderOanda(); return; }
+    if (b.id === 'oaCancel') { oaReplace = false; oaErr = ''; renderOanda(); return; }
+    if (!b.id) return;
+    b.disabled = true;
+    try {
+      if (b.id === 'oaRefresh') { oaStatus = await post('/api/oanda/refresh-accounts'); renderOanda(); toast('Accounts refreshed'); }
+      else if (b.id === 'oaDisc') {
+        if (!confirm('Disconnect your OANDA account? Automated trading will stop until you reconnect.')) { b.disabled = false; return; }
+        oaStatus = await api('/api/oanda', { method: 'DELETE' }); renderOanda(); toast('Disconnected');
+      } else if (b.id === 'oaTest') {
+        const out = $('#oaResult'); b.textContent = 'Testing…';
+        try {
+          const r = await post('/api/broker/test'); out.hidden = false; const a = r.account;
+          out.textContent = r.ok && a ? `Connected\nAccount: ${a.accountId ?? a.login}\nBalance: ${a.balance} ${a.currency || ''}\nLatency: ${r.latencyMs} ms` : (r.error || 'Connection failed');
+          r.ok ? toast('Connection OK') : toast(r.error || 'Connection failed', true);
+        } catch (ex) { out.hidden = false; out.textContent = ex.message; fail(ex); }
+        b.textContent = 'Test connection';
+      }
+    } catch (ex) { fail(ex); }
+    b.disabled = false;
+  });
+}
+
 // ---------- cTrader connection ----------
 let ctStatus = null;
 function fmtDate(ms) { const d = new Date(ms); return typeof ms === 'number' && !isNaN(d) ? d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; }
@@ -484,7 +576,7 @@ function initPlay() {
     <p class="hint">Extract is a dry analysis. “Execute for real” places the trade ignoring dry-run/enabled settings.</p></div><div class="card" id="pOut"><span class="muted">Results appear here.</span></div>`;
   const run = async (execute) => {
     const text = $('#pText').value; if (!text.trim()) return;
-    if (execute && !confirm('Place this trade for REAL on your cTrader account?')) return;
+    if (execute && !confirm(`Place this trade for REAL on your ${brokerLabel()} account?`)) return;
     const btns = [$('#pRun'), $('#pExec')]; btns.forEach((b) => (b.disabled = true));
     try { renderPlay(await post('/api/extract', execute ? { text, execute: true } : { text })); if (execute) toast('Execute request sent'); }
     catch (ex) { fail(ex); } finally { btns.forEach((b) => (b.disabled = false)); }

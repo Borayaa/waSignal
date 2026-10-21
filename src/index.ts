@@ -3,9 +3,11 @@ import authRoutes from './routes/auth';
 import bridgeRoutes from './routes/bridge';
 import ctraderRoutes from './routes/ctrader';
 import dashboardRoutes from './routes/dashboard';
+import oandaRoutes from './routes/oanda';
 import telegramRoutes from './routes/telegram';
 import { processIncomingMessage } from './lib/pipeline';
 import { BrokerError } from './lib/ctauth';
+import { OandaError } from './lib/brokers/oanda';
 import { CtraderError } from './lib/ctrader';
 import type { AppBindings, Env, SignalQueueMessage } from './types';
 
@@ -14,12 +16,13 @@ const app = new Hono<AppBindings>();
 app.route('/', authRoutes);
 app.route('/', bridgeRoutes);
 app.route('/', ctraderRoutes); // before dashboardRoutes: its OAuth callback must bypass the dashboard auth middleware
+app.route('/', oandaRoutes); // has its own requireAuth
 app.route('/', dashboardRoutes);
 app.route('/', telegramRoutes); // has its own requireAuth
 
 app.onError((err, c) => {
   if (err instanceof BrokerError) return c.json({ error: err.message }, err.status as 400);
-  if (err instanceof CtraderError) return c.json({ error: err.message }, 502);
+  if (err instanceof CtraderError || err instanceof OandaError) return c.json({ error: err.message }, 502);
   console.error(err);
   if (c.req.path.startsWith('/api/')) return c.json({ error: err.message || 'Internal error' }, 500);
   return c.text('Internal error', 500);

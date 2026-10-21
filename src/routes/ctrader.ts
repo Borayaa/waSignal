@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { sign, verify } from 'hono/jwt';
-import { BrokerClient } from '../lib/broker';
+import { getBroker } from '../lib/brokers';
 import { authorizeUrl, ctraderConfigured, getStatus, linkWithCode, refreshAccounts, selectAccount, unlink } from '../lib/ctauth';
 import { requireAuth, sessionAccountId } from '../lib/auth';
 import type { AppBindings } from '../types';
@@ -56,7 +56,7 @@ app.post('/api/ctrader/refresh-accounts', async (c) => c.json(await refreshAccou
 app.delete('/api/ctrader', async (c) => c.json(await unlink(c.env, c.get('accountId'))));
 
 // ---------- Trading data (BrokerError -> 400, CtraderError -> 502 via app.onError) ----------
-const broker = (c: { env: AppBindings['Bindings']; get(k: 'accountId'): string }) => BrokerClient.forAccount(c.env, c.get('accountId'));
+const broker = (c: { env: AppBindings['Bindings']; get(k: 'accountId'): string }) => getBroker(c.env, c.get('accountId'));
 
 app.get('/api/broker/account', async (c) => c.json(await (await broker(c)).accountInfo()));
 app.get('/api/broker/positions', async (c) => c.json({ positions: await (await broker(c)).positions() }));

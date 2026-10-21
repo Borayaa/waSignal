@@ -1,6 +1,6 @@
 import type { AutomationConfig, Env, ExtractionResult, IncomingMessage, OrderRequest, SignalStatus, TradeSignal } from '../types';
 import { extractSignal } from './clairic';
-import { BrokerClient } from './broker';
+import { getBroker, type Broker } from './brokers';
 import { getConfig } from './settings';
 
 const roundLot = (n: number) => Math.max(0.01, Math.round(n * 100) / 100);
@@ -55,7 +55,7 @@ export function buildTradeSignal(ex: ExtractionResult, cfg: AutomationConfig, no
   if (cfg.allowedSymbols.length && !cfg.allowedSymbols.map((s) => s.toUpperCase()).includes(mapped.toUpperCase())) {
     errors.push(`symbol ${mapped} not allowed`);
   }
-  const symbol = mapped + cfg.symbolSuffix;
+  const symbol = cfg.broker === 'oanda' ? mapped : mapped + cfg.symbolSuffix; // suffix is a cTrader/MT concept
 
   const { side, orderKind, entry } = ex;
   let { stopLoss, takeProfits } = ex;
@@ -141,12 +141,12 @@ async function executeOrders(
   const results: unknown[] = [];
   let ok = 0;
   let firstError: string | null = null;
-  let client: BrokerClient | null = null;
+  let client: Broker | null = null;
   for (const req of orders) {
     let response: unknown;
     let success = false;
     try {
-      client ??= await BrokerClient.forAccount(env, accountId);
+      client ??= await getBroker(env, accountId);
       response = await client.openTrade(req);
       success = true;
       ok++;
@@ -211,7 +211,7 @@ export async function processIncomingMessage(env: Env, accountId: string, msg: I
         } else {
           let blocked = false;
           if (cfg.maxOpenPositions > 0 && !cfg.dryRun) {
-            const open = (await (await BrokerClient.forAccount(env, accountId)).positions()).length;
+            const open = (await (await getBroker(env, accountId)).positions()).length;
             if (open >= cfg.maxOpenPositions) {
               status = 'rejected';
               reason = `max open positions reached (${open}/${cfg.maxOpenPositions})`;

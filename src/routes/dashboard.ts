@@ -29,6 +29,7 @@ function cleanConfig(raw: unknown): Partial<AutomationConfig> {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const out: Partial<AutomationConfig> = {};
   for (const k of ['enabled', 'dryRun', 'requireStopLoss'] as const) if (typeof r[k] === 'boolean') out[k] = r[k];
+  if (r.broker === 'ctrader' || r.broker === 'oanda') out.broker = r.broker;
   if (r.lotMode === 'fixed' || r.lotMode === 'signal') out.lotMode = r.lotMode;
   if (r.tpStrategy === 'first' || r.tpStrategy === 'last' || r.tpStrategy === 'split') out.tpStrategy = r.tpStrategy;
   const fixedLot = num(r.fixedLot, 0.01, 1000);
