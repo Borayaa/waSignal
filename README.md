@@ -216,10 +216,10 @@ The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions 
 
 1. Open https://trading.infragreen.app
 2. **Create an account:**
-   - **Access Key**: any secret ≥ 8 characters (e.g., `openssl rand -hex 16`); acts as your login password
+   - **Create account**: choose a username (3–32 letters, numbers, . _ -) and a password (≥ 8 characters)
    - **Invite Code**: required if `INVITE_CODE` secret is set (ask your admin for the code from the deploy output)
    - **Label**: optional, for your reference
-   - Unknown access key + valid invite code → creates a new account if `SIGNUP_ENABLED` is true
+   - The invite code is required to create an account (if `INVITE_CODE` is set); afterwards just sign in with username + password
 
 ### cTrader Account Setup
 
@@ -304,7 +304,7 @@ Example: trading ~2 hours/day for 22 trading days/month = 44 total hours:
 - **Target chat only** — signals from other chats are ignored.
 - **Symbol whitelist** — use `allowedSymbols` to trade only approved pairs.
 - **Encryption** — cTrader OAuth token is AES-GCM encrypted in the D1 database; never displayed in logs.
-- **Multi-account isolation** — each access key = separate account with its own cTrader connection, WhatsApp session, and config.
+- **Multi-account isolation** — each user account is separate, with its own cTrader connection, WhatsApp session, and config.
 - **Live account warnings** — dashboard highlights when you're connected to a live (not demo) account.
 
 **External Terms of Service:**

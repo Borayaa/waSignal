@@ -1,5 +1,4 @@
 import { DEFAULT_CONFIG, type AccountSettings, type AutomationConfig, type Env } from '../types';
-import { decrypt } from './crypto';
 
 async function configRow(env: Env, accountId: string): Promise<string | null> {
   const r = await env.DB.prepare('SELECT config FROM settings WHERE account_id = ?').bind(accountId).first<{ config: string }>();
@@ -25,10 +24,4 @@ export async function saveSettings(env: Env, accountId: string, patch: { config?
     .bind(accountId, JSON.stringify(config), Date.now())
     .run();
   return getSettings(env, accountId);
-}
-
-export async function getApiKey(env: Env, accountId: string): Promise<string> {
-  const r = await env.DB.prepare('SELECT api_key_enc FROM accounts WHERE id = ?').bind(accountId).first<{ api_key_enc: string }>();
-  if (!r) throw new Error('account not found');
-  return decrypt(env, r.api_key_enc);
 }

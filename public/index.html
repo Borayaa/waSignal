@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>waSignal Trading</title>
+<title>InfraGreen Trading</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -11,17 +11,32 @@
 </head>
 <body class="login-body">
 <main class="login-card card">
-  <div class="brand"><span class="logo"></span> waSignal <em>Trading</em></div>
-  <form id="form" autocomplete="off">
-    <label class="field"><span>Access key</span>
-      <div class="input-row"><input id="apiKey" type="password" required autocomplete="off" spellcheck="false"><button type="button" id="toggle" class="btn ghost">Show</button></div>
+  <div class="brand"><span class="logo"></span> InfraGreen <em>Trading</em></div>
+  <div class="seg" role="tablist" aria-label="Authentication mode">
+    <button type="button" role="tab" id="tab-signin" aria-controls="form" aria-selected="true">Sign in</button>
+    <button type="button" role="tab" id="tab-signup" aria-controls="form" aria-selected="false" tabindex="-1">Create account</button>
+  </div>
+  <form id="form" role="tabpanel" aria-labelledby="tab-signin" novalidate>
+    <label class="field"><span>Username</span>
+      <input id="username" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32">
+      <div class="hint" data-signup hidden>3&ndash;32 letters, numbers, . _ -</div>
     </label>
-    <label class="field"><span>Invite code <small>(only for new accounts)</small></span><input id="inviteCode" type="text" autocomplete="off" spellcheck="false"></label>
-    <label class="field"><span>Account label <small>(optional)</small></span><input id="label" type="text" maxlength="60" placeholder="e.g. Main XAU"></label>
-    <div id="err" class="inline-err" hidden></div>
+    <label class="field"><span>Password</span>
+      <div class="input-row"><input id="password" type="password" required autocomplete="current-password" maxlength="128"><button type="button" id="toggle" class="btn ghost" aria-controls="password" aria-pressed="false">Show</button></div>
+      <div class="hint" data-signup hidden>At least 8 characters</div>
+      <div class="strength" data-signup hidden><div class="bar"><i id="strBar"></i></div><span id="strTxt" class="small muted" aria-live="polite"></span></div>
+    </label>
+    <label class="field" data-signup hidden><span>Confirm password</span>
+      <input id="confirm" type="password" autocomplete="new-password" maxlength="128">
+    </label>
+    <label class="field" data-signup hidden><span>Invite code</span>
+      <input id="inviteCode" type="text" autocomplete="off" spellcheck="false">
+      <div class="hint">Required. Ask the admin for an invite code.</div>
+    </label>
+    <div id="err" class="inline-err" role="alert" hidden></div>
     <button id="submit" class="btn primary block" type="submit">Sign in</button>
   </form>
-  <p class="muted small">Your access key is your password. A new key creates a new account (requires an invite code).</p>
+  <p class="muted small"><a href="https://infragreen.app" rel="noopener">&larr; Back to infragreen.app</a></p>
 </main>
 <script type="module" src="/assets/login.js"></script>
 </body>

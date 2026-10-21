@@ -18,8 +18,37 @@ const fail = (e) => toast(e.message || String(e), true);
 // ---------- boot ----------
 let me, settings;
 try { me = await get('/api/me'); } catch { throw 0; }
-$('#acct').innerHTML = `<b>${esc(me.label || 'account')}</b> · <span class="mono">${esc(me.keyPreview)}</span>`;
+$('#acct').textContent = me.username;
 $('#logout').onclick = async () => { try { await post('/api/auth/logout'); } catch {} location.href = '/'; };
+
+// ---------- account menu ----------
+const menu = $('#acctMenu'), menuBtn = $('#acctBtn');
+function setMenu(open) { menu.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); if (open) menu.querySelector('button').focus(); }
+menuBtn.onclick = () => setMenu(menu.hidden);
+document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.menu')) setMenu(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); menuBtn.focus(); } });
+
+// ---------- change password ----------
+const dlg = $('#pwDlg'), pwErr = $('#pwErr');
+$('#chgPw').onclick = () => { setMenu(false); $('#pwForm').reset(); pwErr.hidden = true; dlg.showModal(); $('#pwCur').focus(); };
+$('#pwCancel').onclick = () => dlg.close();
+$('#pwForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const currentPassword = $('#pwCur').value, newPassword = $('#pwNew').value;
+  const showErr = (m) => { pwErr.textContent = m; pwErr.hidden = false; };
+  pwErr.hidden = true;
+  if (!currentPassword) return showErr('Enter your current password.');
+  if (newPassword.length < 8 || newPassword.length > 128) return showErr('New password must be 8–128 characters.');
+  if (newPassword !== $('#pwConf').value) return showErr('New passwords do not match.');
+  const btn = $('#pwSave'); btn.disabled = true;
+  try {
+    await put('/api/auth/password', { currentPassword, newPassword }, { noRedirect: true });
+    dlg.close(); toast('Password changed. Other sessions were signed out.');
+  } catch (ex) {
+    if (ex.status === 401 && ex.message !== 'Current password is incorrect') { location.href = '/'; return; }
+    showErr(ex.message);
+  } finally { btn.disabled = false; }
+});
 
 function setPill(cfg) {
   const p = $('#pill');

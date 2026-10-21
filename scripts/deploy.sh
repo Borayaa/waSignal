@@ -181,7 +181,7 @@ Next steps:
   3. Start the WhatsApp bridge (on this machine or any server, copy bridge/ incl. bridge/.env):
        cd bridge && docker compose up -d        # or: npm install && npm start
   4. Open $SITE_URL, create an account:
-       - Access Key: any secret ≥ 8 characters (use openssl rand -hex 16)
+       - Create account: choose a username and password (≥ 8 characters)
        - Invite Code: ${NEW_INVITE_CODE:-(from above)}
   5. Automation tab → click "Connect with cTrader" → log in with IC Markets credentials → select demo or live account.
   6. WhatsApp tab → Connect → scan QR → choose the target chat.

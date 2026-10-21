@@ -7,8 +7,8 @@ import type { AppBindings } from '../types';
 const COOKIE = 'wa_session';
 const MAX_AGE = 7 * 24 * 60 * 60;
 
-export async function setSession(c: Context<AppBindings>, accountId: string): Promise<void> {
-  const token = await sign({ sub: accountId, exp: Math.floor(Date.now() / 1000) + MAX_AGE }, c.env.SESSION_SECRET, 'HS256');
+export async function setSession(c: Context<AppBindings>, accountId: string, version: number): Promise<void> {
+  const token = await sign({ sub: accountId, v: version, exp: Math.floor(Date.now() / 1000) + MAX_AGE }, c.env.SESSION_SECRET, 'HS256');
   setCookie(c, COOKIE, token, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: MAX_AGE });
 }
 
@@ -21,7 +21,9 @@ export async function sessionAccountId(c: Context<AppBindings>): Promise<string 
   if (!token) return null;
   try {
     const payload = await verify(token, c.env.SESSION_SECRET, 'HS256');
-    return typeof payload.sub === 'string' ? payload.sub : null;
+    if (typeof payload.sub !== 'string' || typeof payload.v !== 'number') return null;
+    const row = await c.env.DB.prepare('SELECT session_version FROM accounts WHERE id = ?').bind(payload.sub).first<{ session_version: number }>();
+    return row && row.session_version === payload.v ? payload.sub : null;
   } catch {
     return null;
   }
@@ -29,7 +31,10 @@ export async function sessionAccountId(c: Context<AppBindings>): Promise<string 
 
 export const requireAuth: MiddlewareHandler<AppBindings> = async (c, next) => {
   const id = await sessionAccountId(c);
-  if (!id) return c.json({ error: 'Unauthorized' }, 401);
+  if (!id) {
+    clearSession(c);
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
   c.set('accountId', id);
   await next();
 };

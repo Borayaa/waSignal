@@ -116,3 +116,32 @@ interface CostsResponse {
   notes: string[];
 }
 ```
+
+---
+
+# v4 — username & password accounts (supersedes every access-key / apiKey login section above)
+
+Accounts are now username + password. The `accounts` table is rebuilt by `migrations/0003_users.sql`
+(production had 0 accounts, so no data migration). Columns: `id TEXT PK, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+password_hash TEXT NOT NULL, session_version INTEGER NOT NULL DEFAULT 1, failed_logins INTEGER NOT NULL DEFAULT 0,
+locked_until INTEGER, created_at INTEGER NOT NULL, last_login_at INTEGER`. Other tables keep `REFERENCES accounts(id)`.
+
+- Username: 3–32 chars `[A-Za-z0-9_.-]`, case-insensitive unique, stored as typed (display) but compared NOCASE.
+- Password: 8–128 chars. Hash: PBKDF2-SHA256, 100,000 iterations (workerd max), 16-byte random salt,
+  stored as `pbkdf2-sha256$100000$<b64 salt>$<b64 hash>`; constant-time verify. Unknown usernames still run one
+  PBKDF2 against a dummy hash so timing doesn't reveal which usernames exist.
+- Lockout: 5 consecutive failures → `locked_until = now + 15 min`; success resets `failed_logins`.
+- Session JWT (cookie `wa_session`, 7 days) now carries `{ sub: accountId, v: session_version, exp }`. `requireAuth`
+  loads the account and rejects (401, clears cookie) if it no longer exists or `v` ≠ `session_version`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/auth/signup` | `{ username, password, inviteCode? }` | 201 `Me` + session cookie. 400 `{error}` (validation message), 403 `"Sign-ups are disabled"` when `SIGNUP_ENABLED !== "true"`, 403 `"Invalid invite code"` when `INVITE_CODE` is set and doesn't match, 409 `"Username already taken"`. Creates `settings` + `wa_state` rows in the same batch. |
+| POST | `/api/auth/login` | `{ username, password }` | `Me` + session cookie. 401 `"Invalid username or password"` (same message for unknown user / wrong password), 429 `"Too many failed attempts. Try again in N minutes."` |
+| POST | `/api/auth/logout` | – | `{ ok: true }` |
+| GET | `/api/me` | – | `Me` or 401 |
+| PUT | `/api/auth/password` | `{ currentPassword, newPassword }` | `{ ok: true }` — verifies current, rehashes, increments `session_version` (logs out all other sessions) and re-issues this session's cookie. 400 validation, 401 `"Current password is incorrect"`. |
+
+```ts
+interface Me { id: string; username: string; createdAt: number; lastLoginAt: number | null }
+```

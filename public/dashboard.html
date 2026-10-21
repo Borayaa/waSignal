@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>waSignal Dashboard</title>
+<title>InfraGreen Trading Dashboard</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -11,11 +11,16 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo"></span> waSignal <em>Trading</em></div>
-  <span id="acct" class="acct"></span>
-  <span class="sp"></span>
+  <div class="brand"><span class="logo"></span> InfraGreen <em>Trading</em></div>
+    <span class="sp"></span>
   <span id="pill" class="pill off">…</span>
-  <button id="logout" class="btn sm">Logout</button>
+  <div class="menu">
+    <button id="acctBtn" class="btn sm" aria-haspopup="menu" aria-expanded="false" aria-controls="acctMenu"><span id="acct"></span> &#9662;</button>
+    <div id="acctMenu" class="menu-list" role="menu" hidden>
+      <button type="button" role="menuitem" id="chgPw">Change password</button>
+      <button type="button" role="menuitem" id="logout">Log out</button>
+    </div>
+  </div>
 </header>
 <div class="shell">
   <nav class="nav" id="nav">
@@ -46,6 +51,16 @@
   </main>
 </div>
 <div id="toasts"></div>
+<dialog id="pwDlg" aria-labelledby="pwTitle">
+  <form id="pwForm" novalidate>
+    <h3 id="pwTitle">Change password</h3>
+    <label class="field"><span>Current password</span><input id="pwCur" type="password" autocomplete="current-password" required maxlength="128"></label>
+    <label class="field"><span>New password</span><input id="pwNew" type="password" autocomplete="new-password" required maxlength="128"><div class="hint">At least 8 characters</div></label>
+    <label class="field"><span>Confirm new password</span><input id="pwConf" type="password" autocomplete="new-password" required maxlength="128"></label>
+    <div id="pwErr" class="inline-err" role="alert" hidden></div>
+    <div class="btns"><button type="submit" id="pwSave" class="btn primary">Change password</button><button type="button" id="pwCancel" class="btn">Cancel</button></div>
+  </form>
+</dialog>
 <script type="module" src="/assets/dashboard.js"></script>
 </body>
 </html>
