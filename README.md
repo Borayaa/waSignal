@@ -1,15 +1,15 @@
 # waSignal Trading
 
-A trading dashboard that bridges WhatsApp trading signals directly to cTrader Open API (IC Markets) via automated trade execution. Hosted at https://trading.infragreen.app.
+A trading dashboard that bridges WhatsApp and Telegram trading signals directly to cTrader Open API (IC Markets) via automated trade execution. Hosted at https://trading.infragreen.app.
 
 ## Overview
 
-waSignal Trading automates the workflow from WhatsApp trading signals to live trading accounts. A Baileys bridge service monitors a WhatsApp chat for trade signals and forwards them to the Cloudflare Worker, which enqueues them in a Cloudflare Queue for processing. The queue consumer extracts structured data using Workers AI (Clairic model), validates against your automation rules, and executes trades via the cTrader Open API (~1 second per trade).
+waSignal Trading automates the workflow from WhatsApp and Telegram trading signals to live trading accounts. A bridge service monitors one WhatsApp chat or Telegram channel/group for trade signals and forwards them to the Cloudflare Worker, which enqueues them in a Cloudflare Queue for processing. The queue consumer extracts structured data using Workers AI (Clairic model), validates against your automation rules, and executes trades via the cTrader Open API (~1 second per trade).
 
 ```
-WhatsApp              Baileys Bridge          Cloudflare Worker    Cloudflare Queue
-  Chat       →   (Node.js service)   →   (TypeScript + Hono)   →   (wasignal-signals)
-                      ↓                                                    ↓
+WhatsApp/Telegram     Bridge Service             Cloudflare Worker    Cloudflare Queue
+  Chat       →   (Node.js + Baileys/GramJS) →   (TypeScript + Hono)  →  (wasignal-signals)
+                      ↓                                                       ↓
                   Sessions in                                    Clairic AI extraction
                   bridge/auth/                                   (Workers AI model)
                                                                        ↓
@@ -25,8 +25,8 @@ WhatsApp              Baileys Bridge          Cloudflare Worker    Cloudflare Qu
    TP 152 153.5"                      - allowed symbols
                                        - dry run mode
   Multi-account:                       - confidence threshold
-  Each account
-  = separate WhatsApp session         Store: signals, trades, costs
+  Each account can use
+  WhatsApp and/or Telegram           Store: signals, trades, costs
   + dedicated cTrader account
 ```
 
@@ -177,9 +177,9 @@ To skip the actual deploy and only set up the database: `scripts/deploy.sh --no-
    
    **Note:** Workers AI calls the remote Clairic model even in local dev; you must be logged in (`npx wrangler login`) for it to work.
 
-## Running the Bridge (Baileys Node Service)
+## Running the Bridge (Node Service with Baileys & GramJS)
 
-The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions via Baileys (unofficial WhatsApp Web client).
+The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions via Baileys (unofficial WhatsApp Web client) and Telegram sessions via GramJS (MTProto user session).
 
 ### Setup
 
@@ -196,6 +196,10 @@ The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions 
 3. **Configure `.env`:**
    - `WORKER_URL`: full URL to your Worker (e.g., `https://trading.infragreen.app`)
    - `BRIDGE_TOKEN`: same value as the Worker secret
+   - `TELEGRAM_API_ID` (optional): from https://my.telegram.org → API development tools
+   - `TELEGRAM_API_HASH` (optional): from https://my.telegram.org → API development tools
+   
+   Without `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, WhatsApp continues to work normally and Telegram shows as unavailable.
 
 4. **Install and start:**
    ```bash
@@ -208,7 +212,7 @@ The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions 
    docker compose up -d
    ```
 
-**Important:** Keep `bridge/auth/` persistent (mounted volume if using Docker) — it stores WhatsApp session keys. If you lose them, you must reconnect all accounts.
+**Important:** Keep `bridge/auth/` persistent (mounted volume if using Docker) — it stores WhatsApp and Telegram session keys. Telegram session files are as sensitive as a logged-in device on Telegram Desktop. If you lose them, you must reconnect all accounts.
 
 ## Using the Dashboard
 
@@ -230,11 +234,23 @@ The bridge polls the Worker at `/api/bridge/sync` and manages WhatsApp sessions 
    - Select **demo** or **live** trading account
 2. The connection is now active; you can execute trades via signals
 
-### WhatsApp Setup
+### Sources Setup (WhatsApp and/or Telegram)
 
-1. **WhatsApp tab** → click **Connect**
-2. Scan the QR code with your phone
-3. Once connected, **choose a target chat** where trade signals are posted
+1. **Sources tab** → connect one or both signal sources:
+
+   **WhatsApp:**
+   - Click **Connect**
+   - Scan the QR code with your phone
+   - Once connected, **choose a target chat** where trade signals are posted
+
+   **Telegram:**
+   - Click **Connect**
+   - Scan the QR code with your Telegram app (Settings → Devices → Link Desktop Device)
+   - If your account has 2-step verification enabled, enter the cloud password when prompted
+   - Once connected, **choose a target channel or group** where trade signals are posted
+   - Note: any channel or group you have joined can be a signal source
+
+2. Each source has its own target chat/channel. Signals show a source badge and can be filtered by source.
 
 ### Testing Extraction
 
@@ -310,6 +326,7 @@ Example: trading ~2 hours/day for 22 trading days/month = 44 total hours:
 **External Terms of Service:**
 
 - **WhatsApp ToS** — Baileys (unofficial WhatsApp Web) is not endorsed by Meta. Use at your own risk; accounts may be rate-limited or suspended. See https://www.baileys.so for details.
+- **Telegram ToS** — Telegram user sessions (GramJS/MTProto) are subject to Telegram's terms of service. The bridge logs in as a user, not a bot, so review Telegram's policies on automated access. Session files are as sensitive as a logged-in Telegram Desktop device — keep them private and backed up.
 - **Broker ToS** — automating trades may violate your broker's terms of service. Check with IC Markets and your broker before deploying live.
 
 **Getting Started Safely:**

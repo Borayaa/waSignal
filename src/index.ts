@@ -3,6 +3,7 @@ import authRoutes from './routes/auth';
 import bridgeRoutes from './routes/bridge';
 import ctraderRoutes from './routes/ctrader';
 import dashboardRoutes from './routes/dashboard';
+import telegramRoutes from './routes/telegram';
 import { processIncomingMessage } from './lib/pipeline';
 import { BrokerError } from './lib/ctauth';
 import { CtraderError } from './lib/ctrader';
@@ -14,6 +15,7 @@ app.route('/', authRoutes);
 app.route('/', bridgeRoutes);
 app.route('/', ctraderRoutes); // before dashboardRoutes: its OAuth callback must bypass the dashboard auth middleware
 app.route('/', dashboardRoutes);
+app.route('/', telegramRoutes); // has its own requireAuth
 
 app.onError((err, c) => {
   if (err instanceof BrokerError) return c.json({ error: err.message }, err.status as 400);

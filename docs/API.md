@@ -145,3 +145,48 @@ locked_until INTEGER, created_at INTEGER NOT NULL, last_login_at INTEGER`. Other
 ```ts
 interface Me { id: string; username: string; createdAt: number; lastLoginAt: number | null }
 ```
+
+---
+
+# v5 — Telegram as a second signal source (in addition to WhatsApp)
+
+Telegram is read through a **user session** (MTProto, GramJS `telegram` npm package) inside the existing bridge —
+not a bot — so any channel/group the user has joined can be the signal source. Login by **QR code**
+(Telegram app → Settings → Devices → Link Desktop Device) plus the 2FA cloud password when the account has one.
+Bridge env: `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` (from https://my.telegram.org → API development tools);
+when missing, the bridge reports Telegram as unavailable and keeps WhatsApp working. Session string stored in
+`${AUTH_DIR}/tg-<accountId>.session` (never sent to the Worker).
+
+Each account can use WhatsApp and/or Telegram at the same time, each with its own target chat.
+
+## Schema (migrations/0004_telegram.sql)
+- `tg_state(account_id PK → accounts ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'disconnected', qr TEXT, user_label TEXT,
+  desired TEXT NOT NULL DEFAULT 'disconnected', target_chat_id TEXT, target_chat_name TEXT, password_enc TEXT, error TEXT,
+  bridge_seen_at INTEGER, updated_at INTEGER NOT NULL)`; signup also inserts a tg_state row (and the migration backfills rows for existing accounts).
+- `tg_chats(account_id, chat_id, name, kind TEXT /* 'channel' | 'group' | 'user' */, updated_at, PK(account_id, chat_id))`.
+- `signals` gets `source TEXT NOT NULL DEFAULT 'whatsapp'` (`'whatsapp' | 'telegram'`). Telegram message ids are stored as
+  `tg:<chatId>:<messageId>` in `wa_message_id` so dedupe stays unique per account.
+
+```ts
+type TgStatus = 'unavailable' /* bridge has no API id/hash */ | 'disconnected' | 'connecting' | 'qr' | 'password' | 'connected' | 'logged_out';
+type TgDesired = 'connected' | 'disconnected' | 'logout';
+type SignalSource = 'whatsapp' | 'telegram';
+```
+
+## Dashboard API (cookie auth)
+| GET | `/api/tg` | – | `{ status: TgStatus, qr: string\|null /* PNG data URL */, user: string\|null, desired: TgDesired, targetChatId, targetChatName, error: string\|null, bridgeOnline: boolean, chats: { id, name, kind }[] }` — chats sorted channels, groups, then users; by name |
+| POST | `/api/tg/connect` | – | desired='connected' |
+| POST | `/api/tg/disconnect` | – | desired='disconnected' |
+| POST | `/api/tg/logout` | – | desired='logout', clears chats + target |
+| PUT | `/api/tg/target` | `{ chatId: string\|null }` | `{ targetChatId, targetChatName }` (chatId must exist in tg_chats) |
+| POST | `/api/tg/password` | `{ password }` | stores it encrypted (`password_enc`) for the bridge to pick up once → `{ ok: true }` (400 unless status is 'password') |
+Signals list items gain `source: SignalSource`. `/api/stats` unchanged.
+
+## Bridge API additions (Bearer BRIDGE_TOKEN)
+| GET | `/api/bridge/sync` | – | adds `telegram: { accountId, desired: TgDesired, targetChatId: string\|null, password?: string }[]` — accounts whose tg desired ≠ 'disconnected' or status ∉ ('disconnected','unavailable'). `password` is decrypted, included once, then `password_enc` is cleared. |
+| POST | `/api/bridge/telegram/state` | `{ accountId, status: TgStatus, qr?: string\|null, user?: string\|null, error?: string\|null }` | qr cleared unless status 'qr'; 'logged_out' → desired='disconnected', clear user/target, delete tg_chats |
+| POST | `/api/bridge/telegram/chats` | `{ accountId, chats: { id: string, name: string\|null, kind: 'channel'\|'group'\|'user' }[] }` | upsert |
+| POST | `/api/bridge/message` | `BridgeMessage & { source?: SignalSource }` | default 'whatsapp'. Target check uses wa_state for whatsapp, tg_state for telegram. |
+
+Telegram chat ids are GramJS "marked" peer ids as strings (e.g. `-1001234567890` for channels/supergroups).
+Bridge forwards only NewMessage events (incl. channel posts) from the target chat; text = message text or media caption; skips empty.

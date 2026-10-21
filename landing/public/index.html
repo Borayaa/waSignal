@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>InfraGreen - WhatsApp signals to cTrader trades</title>
-<meta name="description" content="InfraGreen Trading reads signals from one WhatsApp chat, extracts the trade with AI, runs safety checks, and executes on cTrader in about a second.">
+<title>InfraGreen - WhatsApp & Telegram signals to cTrader trades</title>
+<meta name="description" content="InfraGreen Trading reads signals from WhatsApp or Telegram, extracts the trade with AI, runs safety checks, and executes on cTrader in about a second.">
 <link rel="canonical" href="https://infragreen.app/">
 <meta name="theme-color" content="#0a120e" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f9f5" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="InfraGreen">
-<meta property="og:title" content="InfraGreen - WhatsApp signals to cTrader trades">
-<meta property="og:description" content="Read signals from one WhatsApp chat, let AI extract the trade, pass safety checks, execute on cTrader.">
+<meta property="og:title" content="InfraGreen - WhatsApp & Telegram signals to cTrader trades">
+<meta property="og:description" content="Read signals from WhatsApp or Telegram, let AI extract the trade, pass safety checks, execute on cTrader.">
 <meta property="og:url" content="https://infragreen.app/">
 <meta property="og:image" content="https://infragreen.app/og.svg">
 <meta name="twitter:card" content="summary_large_image">
@@ -32,8 +32,8 @@
 
 <main id="top">
 <section class="hero"><div class="wrap">
-<h1>Turn WhatsApp signals into cTrader trades in seconds.</h1>
-<p class="sub">InfraGreen Trading watches one chat you choose, reads each message with AI, checks it against your safety rules, and places the order on your cTrader account.</p>
+<h1>Turn WhatsApp & Telegram signals into cTrader trades in seconds.</h1>
+<p class="sub">InfraGreen Trading watches one WhatsApp chat or Telegram channel/group you choose, reads each message with AI, checks it against your safety rules, and places the order on your cTrader account.</p>
 <div class="cta"><a class="btn" href="https://trading.infragreen.app">Open dashboard</a><a class="btn ghost" href="#how">How it works</a></div>
 <p class="note">Automation is off by default. Start on a demo account in dry-run mode.</p>
 
@@ -54,7 +54,7 @@
 <h2>From chat message to open position</h2>
 <p class="lede">Four steps, no copy-pasting, no staring at your phone.</p>
 <ol class="steps">
-<li><h3>Connect WhatsApp</h3><p>Link WhatsApp Web through the bridge, then pick the one chat or group to follow. Everything else is ignored.</p></li>
+<li><h3>Connect WhatsApp or Telegram</h3><p>Link WhatsApp Web or Telegram through the bridge, then pick the one chat, group, or channel to follow. Everything else is ignored. You can use WhatsApp, Telegram, or both at once, each with its own target.</p></li>
 <li><h3>AI extracts the trade</h3><p>Each message becomes structured JSON: side, symbol, order type, entry, stop loss, take profits and lot.</p></li>
 <li><h3>Safety checks</h3><p>The trade must pass every rule you set before it can reach your broker. Anything doubtful is rejected.</p></li>
 <li><h3>Executes on cTrader</h3><p>The order goes to your IC Markets cTrader account through the official Open API in about a second.</p></li>
@@ -114,6 +114,7 @@
 <details><summary>Which chats does it read?</summary><p>Only the single WhatsApp chat or group you select, through a WhatsApp Web bridge.</p></details>
 <details><summary>What does it cost to run?</summary><p>Because it runs serverless on Cloudflare, running costs are typically very low and may fit within Cloudflare's free tier, depending on your usage. The dashboard includes a running-cost view.</p></details>
 <details><summary>How do I get an account?</summary><p>Access is by invite code. Email <a href="mailto:hello@infragreen.app">hello@infragreen.app</a> to request one.</p></details>
+<details><summary>Does it work with Telegram channels?</summary><p>Yes. Telegram signals come through your own user session (like Telegram Desktop), not a bot, so any channel or group you have joined can be the signal source. Your Telegram credentials are never stored; the session is managed securely in the bridge.</p></details>
 </div></div></section>
 </main>
 

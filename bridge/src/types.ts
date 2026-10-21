@@ -13,6 +13,23 @@ export type WaDesired = 'connected' | 'disconnected' | 'logout';
 /** GET /api/bridge/sync */
 export interface BridgeSyncResponse {
   accounts: { accountId: string; desired: WaDesired; targetChatId: string | null }[];
+  telegram?: { accountId: string; desired: TgDesired; targetChatId: string | null; password?: string }[];
+}
+export type TgStatus = 'unavailable' | 'disconnected' | 'connecting' | 'qr' | 'password' | 'connected' | 'logged_out';
+export type TgDesired = 'connected' | 'disconnected' | 'logout';
+export type SignalSource = 'whatsapp' | 'telegram';
+/** POST /api/bridge/telegram/state */
+export interface BridgeTgStateUpdate {
+  accountId: string;
+  status: TgStatus;
+  qr?: string | null;
+  user?: string | null;
+  error?: string | null;
+}
+/** POST /api/bridge/telegram/chats (upsert) */
+export interface BridgeTgChatsUpdate {
+  accountId: string;
+  chats: { id: string; name: string | null; kind: 'channel' | 'group' | 'user' }[];
 }
 /** POST /api/bridge/state */
 export interface BridgeStateUpdate {
@@ -29,4 +46,5 @@ export interface BridgeChatsUpdate {
 /** POST /api/bridge/message */
 export interface BridgeMessage extends IncomingMessage {
   accountId: string;
+  source?: SignalSource;
 }

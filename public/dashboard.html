@@ -27,7 +27,7 @@
     <button data-tab="overview" class="active">Overview</button>
     <button data-tab="signals">Signals</button>
     <button data-tab="trades">Trades</button>
-    <button data-tab="whatsapp">WhatsApp</button>
+    <button data-tab="sources">Sources</button>
     <button data-tab="automation">Automation</button>
     <button data-tab="costs">Costs</button>
     <button data-tab="playground">Playground</button>
@@ -35,16 +35,17 @@
   <main>
     <section class="tab active" id="tab-overview">
       <div id="brokerBanner" class="banner" hidden>Connect your cTrader (IC Markets) account in Automation. <button class="btn sm primary" data-goto="automation">Open Automation</button></div>
+      <div id="srcHint" class="banner" hidden>No target chat selected for WhatsApp or Telegram, so no signals will arrive. <button class="btn sm primary" data-goto="sources">Open Sources</button></div>
       <div class="grid kpis" id="kpisAcct"></div>
       <div class="head"><h2>Today</h2></div>
       <div class="grid kpis" id="kpisStats"></div>
       <div class="head"><h2>Open positions</h2><span class="sp"></span><svg id="spark" class="spark" hidden style="max-width:240px"></svg></div>
       <div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Side</th><th class="num">Lots</th><th class="num">Entry</th><th class="num">SL</th><th class="num">TP</th><th class="num">Swap</th><th class="num">Comm.</th><th class="num">Profit</th><th>Opened</th><th></th></tr></thead><tbody id="positions"></tbody></table></div>
     </section>
-    <section class="tab" id="tab-signals"><div class="head"><h2>Signals feed</h2></div><div class="feed" id="signals"></div></section>
+    <section class="tab" id="tab-signals"><div class="head"><h2>Signals feed</h2><span class="sp"></span><label class="small muted" for="srcFilter">Source</label><select id="srcFilter" style="width:auto"><option value="">All</option><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option></select></div><div class="feed" id="signals"></div></section>
     <section class="tab" id="tab-trades"><div class="head"><h2>Trades log</h2></div>
       <div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Action</th><th>Result</th><th>Ticket</th><th>Details</th></tr></thead><tbody id="trades"></tbody></table></div></section>
-    <section class="tab" id="tab-whatsapp"><div class="head"><h2>WhatsApp</h2></div><div class="grid two" id="wa"></div></section>
+    <section class="tab" id="tab-sources"><div class="head"><h2>Sources</h2></div><div class="grid two" id="wa"></div></section>
     <section class="tab" id="tab-automation"><div class="head"><h2>Automation</h2></div><div class="grid two" id="auto"></div></section>
     <section class="tab" id="tab-costs"><div class="head"><h2>Costs</h2><span class="sp"></span><label class="small muted" for="costMonth">Month</label><input type="month" id="costMonth" style="width:auto"></div><div id="costs"></div></section>
     <section class="tab" id="tab-playground"><div class="head"><h2>Playground</h2></div><div class="grid two" id="play"></div></section>

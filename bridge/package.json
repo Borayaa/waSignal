@@ -16,6 +16,7 @@
     "dotenv": "^18.0.8",
     "pino": "^10.4.0",
     "qrcode": "^1.5.4",
+    "telegram": "^2.26.22",
     "tsx": "^4.23.15"
   },
   "devDependencies": {

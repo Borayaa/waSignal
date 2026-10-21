@@ -146,3 +146,12 @@ input[type=month]{background:var(--bg);color:var(--text);border:1px solid var(--
 dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:20px;width:min(380px,calc(100vw - 32px))}
 dialog::backdrop{background:#0008}
 dialog h3{margin-bottom:14px;font-size:15px}
+
+/* sources */
+.b-whatsapp{background:var(--buy-bg);color:var(--buy)}
+.b-telegram{background:var(--info-bg);color:var(--accent)}
+.b-channel{background:var(--warn-bg);color:var(--warn)}
+.b-user{background:var(--mut-bg);color:var(--muted)}
+.src{align-self:start;min-width:0}
+.src h3{display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:8px}
+.src hr{border:0;border-top:1px solid var(--line);margin:14px 0}

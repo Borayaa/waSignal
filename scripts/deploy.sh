@@ -178,13 +178,15 @@ Next steps:
   2. Set cTrader credentials in Cloudflare (if not already set during deploy):
        npx wrangler secret put CTRADER_CLIENT_ID
        npx wrangler secret put CTRADER_CLIENT_SECRET
-  3. Start the WhatsApp bridge (on this machine or any server, copy bridge/ incl. bridge/.env):
-       cd bridge && docker compose up -d        # or: npm install && npm start
+  3. Start the bridge (on this machine or any server, copy bridge/ incl. bridge/.env):
+       - For WhatsApp only: cd bridge && docker compose up -d    # or: npm install && npm start
+       - For Telegram support (optional): set TELEGRAM_API_ID and TELEGRAM_API_HASH in bridge/.env
+         (get them from https://my.telegram.org → API development tools)
   4. Open $SITE_URL, create an account:
        - Create account: choose a username and password (≥ 8 characters)
        - Invite Code: ${NEW_INVITE_CODE:-(from above)}
   5. Automation tab → click "Connect with cTrader" → log in with IC Markets credentials → select demo or live account.
-  6. WhatsApp tab → Connect → scan QR → choose the target chat.
+  6. Sources tab → connect WhatsApp and/or Telegram, and choose your target chat/channel.
   7. Playground → test a signal. Keep Dry run on until results look right.
   8. Costs tab → check Workers/Queues/Workers AI usage (likely \$0 on Workers Free plan).
   9. Once verified with demo account, disable Dry run to enable live trading on your chosen account.

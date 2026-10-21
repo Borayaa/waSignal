@@ -60,9 +60,10 @@ async function loadSettings() { settings = await get('/api/settings'); setPill(s
 
 // ---------- tabs ----------
 const tabs = { overview: { load: loadOverview, every: 15000 }, signals: { load: loadSignals, every: 5000 }, trades: { load: loadTrades, every: 0 },
-  whatsapp: { load: loadWa, every: 3000, init: initWa }, automation: { load: initAuto, every: 0 }, costs: { load: loadCosts, every: 0 }, playground: { load: initPlay, every: 0 } };
+  sources: { load: loadSources, every: 3000, init: initWa }, automation: { load: initAuto, every: 0 }, costs: { load: loadCosts, every: 0 }, playground: { load: initPlay, every: 0 } };
 let cur = null, timer = null;
 function show(name) {
+  if (name === 'whatsapp') name = 'sources';
   if (!tabs[name]) name = 'overview';
   cur = name; clearInterval(timer);
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
@@ -118,7 +119,8 @@ function renderPositions(list) {
 }
 async function loadOverview() {
   if (!settings) await loadSettings().catch(() => {}); else loadSettings().catch(() => {});
-  const [acc, pos, stats] = await Promise.allSettled([get('/api/broker/account'), get('/api/broker/positions'), get('/api/stats')]);
+  const [acc, pos, stats, wa, tg] = await Promise.allSettled([get('/api/broker/account'), get('/api/broker/positions'), get('/api/stats'), get('/api/wa'), get('/api/tg')]);
+  $('#srcHint').hidden = !(wa.status === 'fulfilled' && tg.status === 'fulfilled' && !wa.value?.targetChatId && !tg.value?.targetChatId);
   const rej = [acc, pos].find((r) => r.status === 'rejected');
   const noConn = rej && rej.reason.status === 400 && NOT_CONNECTED.test(rej.reason.message);
   notConnected(!!noConn);
@@ -162,15 +164,19 @@ function confRow(k, c, v) {
   return `<div class="conf"><span title="${esc(JSON.stringify(v))}">${esc(k)}${v !== null && v !== undefined ? ` <span class="muted mono">${esc(JSON.stringify(v)).slice(0, 24)}</span>` : ''}</span><div class="bar"><i class="${cls}" style="width:${pct ?? 0}%"></i></div><span class="mono">${pct === null ? '—' : pct + '%'}</span></div>`;
 }
 const openSet = new Set();
-async function loadSignals() {
-  const { signals } = await get('/api/signals?limit=50');
-  const box = $('#signals');
-  if (!signals.length) { box.innerHTML = '<div class="empty card">No signals yet. Pick a target chat in the WhatsApp tab.</div>'; return; }
+let lastSignals = [];
+async function loadSignals() { lastSignals = (await get('/api/signals?limit=50')).signals || []; renderSignals(); }
+$('#srcFilter').onchange = renderSignals;
+function renderSignals() {
+  const f = $('#srcFilter').value, box = $('#signals');
+  const signals = lastSignals.filter((s) => !f || (s.source || 'whatsapp') === f);
+  if (!signals.length) { box.innerHTML = `<div class="empty card">${lastSignals.length ? 'No signals from this source.' : 'No signals yet. Pick a target chat in Sources.'}</div>`; return; }
   box.innerHTML = signals.map((s) => {
+    const src = s.source === 'telegram' ? 'telegram' : 'whatsapp';
     const sig = s.signal;
     const summary = sig ? `<div class="mono small" style="margin-top:6px"><span class="badge b-${esc(sig.side)}">${esc(sig.side)}</span> <b>${esc(sig.symbol)}</b> · entry ${num(sig.entry, 5)} · SL ${num(sig.stopLoss, 5)} · TP ${esc((sig.takeProfits || []).join(', ') || '—')}</div>` : '';
     return `<article class="sig s-${esc(s.status)}"><div class="meta"><span class="badge b-${esc(s.status)}">${esc(s.status === 'received' ? 'Queued' : String(s.status).replace('_', ' '))}</span>
-      <span>${esc(s.sender || 'unknown')}</span><span class="mono">${esc(fmtTime(s.receivedAt))}</span></div>
+      <span class="badge b-${src}">${src === 'telegram' ? 'Telegram' : 'WhatsApp'}</span><span>${esc(s.sender || 'unknown')}</span><span class="mono">${esc(fmtTime(s.receivedAt))}</span></div>
       <div class="txt">${esc(s.text)}</div>${summary}${s.reason ? `<div class="reason">${esc(s.reason)}</div>` : ''}
       ${s.signal || s.extraction ? `<details data-id="${esc(s.id)}" ${openSet.has(String(s.id)) ? 'open' : ''}><summary>Structured data</summary>
         ${s.extraction ? `<div style="margin-top:8px">${confBars(s.extraction)}</div><pre>${json(s.extraction)}</pre>` : ''}
@@ -188,11 +194,15 @@ async function loadTrades() {
     : '<tr><td colspan="5" class="empty">No trades yet</td></tr>';
 }
 
-// ---------- whatsapp ----------
+// ---------- sources (whatsapp + telegram) ----------
 let waData = null, chatFilter = '';
 function initWa() {
-  $('#wa').innerHTML = `<div class="card" id="waCard"></div><div class="card"><h3>Target chat</h3><div id="waTarget" style="margin-top:8px"></div>
-    <input type="text" id="chatSearch" placeholder="Search chats…" aria-label="Search chats"><div class="chatlist" id="chatList"></div></div>`;
+  $('#wa').innerHTML = `<div class="card src"><h3><span class="badge b-whatsapp">WhatsApp</span></h3><div id="waCard"></div><hr><h3>Target chat</h3><div id="waTarget"></div>
+    <input type="text" id="chatSearch" placeholder="Search chats…" aria-label="Search WhatsApp chats"><div class="chatlist" id="chatList"></div></div>
+    <div class="card src"><h3><span class="badge b-telegram">Telegram</span></h3><div id="tgCard"></div><div id="tgPick" hidden><hr><h3>Target chat</h3><div id="tgTarget"></div>
+    <input type="text" id="tgSearch" placeholder="Search channels, groups, users…" aria-label="Search Telegram chats"><div class="chatlist" id="tgList"></div></div>
+    <p class="hint">Uses your own Telegram account (like Telegram Desktop) so it can read channels you've joined. The session stays on your bridge.</p></div>`;
+  initTg();
   $('#chatSearch').oninput = (e) => { chatFilter = e.target.value.toLowerCase(); renderChats(); };
   $('#waCard').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-wa]'); if (!b) return;
@@ -206,10 +216,12 @@ function initWa() {
   });
 }
 async function loadWa() { waData = await get('/api/wa'); renderWa(); renderChats(); }
+function loadSources() {
+  return Promise.allSettled([loadWa(), loadTg()]).then((r) => { const e = r.find((x) => x.status === 'rejected'); if (e && e.reason.status !== 400) throw e.reason; });
+}
 function renderWa() {
   const w = waData;
-  $('#waCard').innerHTML = `<h3>Connection</h3>
-    <p><span class="status-dot ${w.bridgeOnline ? 'on' : 'off'}"></span>Bridge ${w.bridgeOnline ? 'online' : '<b class="neg">offline</b>'}</p>
+  $('#waCard').innerHTML = `<p><span class="status-dot ${w.bridgeOnline ? 'on' : 'off'}"></span>Bridge ${w.bridgeOnline ? 'online' : '<b class="neg">offline</b>'}</p>
     <p>Status: <span class="badge b-${w.status === 'connected' ? 'ok' : w.status === 'qr' ? 'partial' : 'ignored'}">${esc(w.status)}</span> <span class="muted small">desired: ${esc(w.desired)}</span></p>
     ${w.status === 'connected' && w.phone ? `<p>Phone: <span class="mono">${esc(w.phone)}</span></p>` : ''}
     ${w.status === 'qr' && w.qr ? `<p><img class="qr" alt="WhatsApp QR code" src="${/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(w.qr) ? esc(w.qr) : ''}"></p><p class="muted small">Scan with WhatsApp → Linked devices</p>` : ''}
@@ -224,6 +236,68 @@ function renderChats() {
     : '<div class="empty">No chats</div>';
 }
 
+// ---------- telegram ----------
+let tgData = null, tgFilter = '';
+const DATA_IMG = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+const TG_BADGE = { connected: 'ok', qr: 'partial', password: 'partial', connecting: 'received', unavailable: 'failed' };
+const KIND = { channel: 'Channel', group: 'Group', user: 'User' };
+function initTg() {
+  $('#tgSearch').oninput = (e) => { tgFilter = e.target.value.toLowerCase(); renderTgChats(); };
+  $('#tgCard').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tg]'); if (!b) return;
+    const a = b.dataset.tg;
+    if (a === 'logout' && !confirm('Log out of Telegram? You will need to scan the QR again.')) return;
+    try { await post('/api/tg/' + a); toast('Requested: ' + a); loadTg().catch(fail); } catch (ex) { fail(ex); }
+  });
+  $('#tgCard').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const inp = $('#tgPw'), btn = $('#tgPwBtn'); if (!inp || !inp.value) return;
+    const password = inp.value; inp.value = ''; btn.disabled = true;
+    try { await post('/api/tg/password', { password }); toast('Password sent'); loadTg().catch(fail); } catch (ex) { fail(ex); }
+    finally { btn.disabled = false; }
+  });
+  $('#tgPick').addEventListener('click', async (e) => {
+    const c = e.target.closest('[data-chat]'); if (!c) return;
+    try { await put('/api/tg/target', { chatId: c.dataset.chat || null }); toast('Target chat updated'); loadTg().catch(fail); } catch (ex) { fail(ex); }
+  });
+}
+async function loadTg() { tgData = await get('/api/tg'); renderTg(); renderTgChats(); }
+function renderTg() {
+  const t = tgData, box = $('#tgCard'), st = t.status;
+  // keep the password field intact while the user is typing during polls
+  if (st === 'password' && $('#tgPw')) {
+    const er = $('#tgPwErr'); er.hidden = !t.error; er.textContent = t.error || '';
+    return;
+  }
+  let body = '';
+  if (st === 'unavailable') body = `<div class="banner">The bridge needs <code>TELEGRAM_API_ID</code> and <code>TELEGRAM_API_HASH</code> (get them at <b>my.telegram.org</b> → API development tools) to use Telegram.${t.error ? `<br><span class="small">${esc(t.error)}</span>` : ''}</div>`;
+  else if (st === 'disconnected' || st === 'logged_out') body = `${st === 'logged_out' ? '<p class="muted small">Logged out. Connect to link again.</p>' : ''}${t.error ? `<div class="inline-err">${esc(t.error)}</div>` : ''}<div class="btns"><button class="btn primary" data-tg="connect">Connect</button></div>`;
+  else if (st === 'connecting') body = `<p><span class="spin"></span>Connecting…</p>`;
+  else if (st === 'qr') body = `${t.qr && DATA_IMG.test(t.qr) ? `<p><img class="qr" alt="Telegram QR code" src="${esc(t.qr)}"></p>` : '<p><span class="spin"></span>Waiting for QR code…</p>'}
+    <ol class="small muted" style="padding-left:18px;margin:6px 0"><li>Open Telegram on your phone</li><li>Settings → Devices → Link Desktop Device</li><li>Scan this code</li></ol>
+    <div class="btns"><button class="btn" data-tg="disconnect">Cancel</button></div>`;
+  else if (st === 'password') body = `<form id="tgPwForm" novalidate><h3>Two-step verification</h3><p class="muted small">Enter your Telegram cloud password.</p>
+    <div id="tgPwErr" class="inline-err" role="alert" ${t.error ? '' : 'hidden'}>${esc(t.error || '')}</div>
+    <label class="field"><span>Password</span><input id="tgPw" type="password" autocomplete="off" maxlength="256" required></label>
+    <div class="btns"><button type="submit" id="tgPwBtn" class="btn primary">Submit</button><button type="button" class="btn" data-tg="disconnect">Cancel</button></div></form>`;
+  else if (st === 'connected') body = `<p>Account: <b>${esc(t.user || 'unknown')}</b></p>${t.error ? `<div class="inline-err">${esc(t.error)}</div>` : ''}
+    <div class="btns"><button class="btn" data-tg="disconnect">Disconnect</button><button class="btn danger" data-tg="logout">Logout</button></div>`;
+  else body = `<p class="muted">Unknown status.</p>`;
+  box.innerHTML = `<p><span class="status-dot ${t.bridgeOnline ? 'on' : 'off'}"></span>Bridge ${t.bridgeOnline ? 'online' : '<b class="neg">offline</b>'}</p>
+    <p>Status: <span class="badge b-${TG_BADGE[st] || 'ignored'}">${esc(st)}</span> <span class="muted small">desired: ${esc(t.desired)}</span></p>${body}`;
+  if (st === 'password') $('#tgPw').focus();
+}
+function renderTgChats() {
+  const t = tgData; if (!t) return;
+  $('#tgPick').hidden = t.status !== 'connected';
+  if (t.status !== 'connected') return;
+  $('#tgTarget').innerHTML = t.targetChatId ? `<div class="target">Current target: <b>${esc(t.targetChatName || t.targetChatId)}</b><br><span class="mono small muted">${esc(t.targetChatId)}</span>
+    <div style="margin-top:6px"><button class="btn sm" data-chat="">Clear target</button></div></div>` : `<div class="banner">No target chat selected — Telegram messages are ignored.</div>`;
+  const list = (t.chats || []).filter((c) => !tgFilter || (c.name || '').toLowerCase().includes(tgFilter) || String(c.id).toLowerCase().includes(tgFilter));
+  $('#tgList').innerHTML = list.length ? list.map((c) => `<div class="chat ${c.id === t.targetChatId ? 'sel' : ''}" data-chat="${esc(c.id)}"><span class="n">${esc(c.name || c.id)}</span><span class="badge b-${esc(c.kind)}">${esc(KIND[c.kind] || c.kind)}</span></div>`).join('')
+    : '<div class="empty">No chats</div>';
+}
+
 // ---------- automation ----------
 const swRow = (id, label, checked, hint = '') => `<label class="sw"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span>${label}${hint ? `<div class="hint">${hint}</div>` : ''}</span></label>`;
 const TP_HELP = { first: 'Single position targeting TP1 (closest take profit).', last: 'Single position targeting the final TP.', split: 'One position per TP; lot divided evenly (min 0.01 each).' };
@@ -233,7 +307,7 @@ async function initAuto() {
   const c = settings.config;
   mapRows = Object.entries(c.symbolMap || {}); allowed = [...(c.allowedSymbols || [])];
   $('#auto').innerHTML = `<form class="card" id="cfgForm"><h3 style="margin-bottom:12px">Automation config</h3>
-    ${swRow('f_enabled', 'Enabled', c.enabled, 'Master switch: execute trades from WhatsApp signals')}
+    ${swRow('f_enabled', 'Enabled', c.enabled, 'Master switch: execute trades from incoming signals')}
     ${swRow('f_dryRun', 'Dry run', c.dryRun, 'Build the JSON but never send orders')}
     <div class="formgrid">
     <label class="field"><span>Lot mode</span><select id="f_lotMode"><option value="fixed">fixed</option><option value="signal">signal (from message)</option></select></label>
@@ -274,7 +348,7 @@ async function saveCfg(e) {
   const config = { enabled: $('#f_enabled').checked, dryRun: $('#f_dryRun').checked, lotMode: $('#f_lotMode').value, fixedLot: parseFloat($('#f_fixedLot').value),
     maxLot: parseFloat($('#f_maxLot').value), tpStrategy: $('#f_tp').value, minConfidence: parseFloat($('#f_conf').value), requireStopLoss: $('#f_reqSl').checked,
     symbolSuffix: $('#f_suffix').value.trim(), symbolMap, allowedSymbols: allowed, maxOpenPositions: parseInt($('#f_maxOpen').value, 10) || 0, commentPrefix: $('#f_prefix').value.trim() };
-  if (config.enabled && !config.dryRun && !confirm('LIVE trading will be enabled: signals from WhatsApp will place REAL orders. Continue?')) return;
+  if (config.enabled && !config.dryRun && !confirm('LIVE trading will be enabled: signals will place REAL orders. Continue?')) return;
   try { settings = await put('/api/settings', { config }); setPill(settings.config); toast('Config saved'); } catch (ex) { fail(ex); }
 }
 // ---------- cTrader connection ----------

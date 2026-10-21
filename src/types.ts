@@ -117,7 +117,12 @@ export type SignalStatus =
   | 'partial' // some orders failed
   | 'failed'; // all orders failed / API error
 
+export type SignalSource = 'whatsapp' | 'telegram';
+export type TgStatus = 'unavailable' | 'disconnected' | 'connecting' | 'qr' | 'password' | 'connected' | 'logged_out';
+export type TgDesired = 'connected' | 'disconnected' | 'logout';
+
 export interface IncomingMessage {
+  source: SignalSource;
   messageId: string;
   chatId: string;
   sender: string | null;
@@ -133,6 +138,20 @@ export type WaDesired = 'connected' | 'disconnected' | 'logout';
 /** GET /api/bridge/sync */
 export interface BridgeSyncResponse {
   accounts: { accountId: string; desired: WaDesired; targetChatId: string | null }[];
+  telegram: { accountId: string; desired: TgDesired; targetChatId: string | null; password?: string }[];
+}
+/** POST /api/bridge/telegram/state */
+export interface BridgeTgStateUpdate {
+  accountId: string;
+  status: TgStatus;
+  qr?: string | null;
+  user?: string | null;
+  error?: string | null;
+}
+/** POST /api/bridge/telegram/chats (upsert) */
+export interface BridgeTgChatsUpdate {
+  accountId: string;
+  chats: { id: string; name: string | null; kind: 'channel' | 'group' | 'user' }[];
 }
 /** POST /api/bridge/state */
 export interface BridgeStateUpdate {
@@ -147,8 +166,9 @@ export interface BridgeChatsUpdate {
   chats: { id: string; name: string | null; isGroup: boolean }[];
 }
 /** POST /api/bridge/message */
-export interface BridgeMessage extends IncomingMessage {
+export interface BridgeMessage extends Omit<IncomingMessage, 'source'> {
   accountId: string;
+  source?: SignalSource;
 }
 
 // ---------- cTrader (see docs/API.md v3) ----------

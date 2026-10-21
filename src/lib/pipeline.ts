@@ -111,9 +111,9 @@ export async function processIncomingMessage(env: Env, accountId: string, msg: I
   let signal: TradeSignal | null = null;
   try {
     const ins = await env.DB.prepare(
-      `INSERT OR IGNORE INTO signals (account_id, wa_message_id, chat_id, sender, text, received_at, status) VALUES (?, ?, ?, ?, ?, ?, 'received')`,
+      `INSERT OR IGNORE INTO signals (account_id, wa_message_id, chat_id, sender, text, received_at, status, source) VALUES (?, ?, ?, ?, ?, ?, 'received', ?)`,
     )
-      .bind(accountId, msg.messageId, msg.chatId, msg.sender, msg.text, msg.timestamp)
+      .bind(accountId, msg.messageId, msg.chatId, msg.sender, msg.text, msg.timestamp, msg.source === 'telegram' ? 'telegram' : 'whatsapp')
       .run();
     if (!ins.meta.changes) return 'ignored';
     signalId = ins.meta.last_row_id;

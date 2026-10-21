@@ -112,13 +112,13 @@ app.put('/api/wa/target', async (c) => {
 // ---------- Signals & trades ----------
 app.get('/api/signals', async (c) => {
   const { results } = await c.env.DB.prepare(
-    'SELECT id, chat_id, sender, text, received_at, status, reason, extraction, signal FROM signals WHERE account_id = ? ORDER BY received_at DESC, id DESC LIMIT ?',
+    'SELECT id, chat_id, sender, text, received_at, status, reason, extraction, signal, source FROM signals WHERE account_id = ? ORDER BY received_at DESC, id DESC LIMIT ?',
   )
     .bind(c.get('accountId'), limitOf(c.req.query('limit')))
     .all<Record<string, any>>();
   return c.json({
     signals: results.map((r) => ({
-      id: r.id, chatId: r.chat_id, sender: r.sender, text: r.text, receivedAt: r.received_at, status: r.status, reason: r.reason,
+      id: r.id, chatId: r.chat_id, sender: r.sender, text: r.text, receivedAt: r.received_at, status: r.status, reason: r.reason, source: r.source === 'telegram' ? 'telegram' : 'whatsapp',
       extraction: parse(r.extraction), signal: parse(r.signal),
     })),
   });

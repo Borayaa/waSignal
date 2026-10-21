@@ -1,6 +1,6 @@
 import { logger } from './logger.js';
 import type {
-  BridgeChatsUpdate, BridgeMessage, BridgeStateUpdate, BridgeSyncResponse,
+  BridgeChatsUpdate, BridgeMessage, BridgeTgChatsUpdate, BridgeTgStateUpdate, BridgeStateUpdate, BridgeSyncResponse,
 } from './types.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -44,6 +44,12 @@ export class WorkerClient {
   async postChats(u: BridgeChatsUpdate) {
     for (let i = 0; i < u.chats.length; i += 500) {
       await this.request('POST', '/api/bridge/chats', { accountId: u.accountId, chats: u.chats.slice(i, i + 500) });
+    }
+  }
+  postTgState(u: BridgeTgStateUpdate) { return this.request('POST', '/api/bridge/telegram/state', u); }
+  async postTgChats(u: BridgeTgChatsUpdate) {
+    for (let i = 0; i < u.chats.length; i += 500) {
+      await this.request('POST', '/api/bridge/telegram/chats', { accountId: u.accountId, chats: u.chats.slice(i, i + 500) });
     }
   }
   postMessage(m: BridgeMessage) { return this.request('POST', '/api/bridge/message', m); }

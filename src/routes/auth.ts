@@ -62,6 +62,7 @@ app.post('/api/auth/signup', async (c) => {
       ),
       c.env.DB.prepare("INSERT INTO settings (account_id, config, updated_at) VALUES (?, '{}', ?)").bind(id, now),
       c.env.DB.prepare('INSERT INTO wa_state (account_id, updated_at) VALUES (?, ?)').bind(id, now),
+      c.env.DB.prepare('INSERT INTO tg_state (account_id, updated_at) VALUES (?, ?)').bind(id, now),
     ]);
   } catch (e) {
     if (/UNIQUE/i.test(String(e))) return c.json({ error: 'Username already taken' }, 409);
